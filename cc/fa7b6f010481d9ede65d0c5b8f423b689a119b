@@ -1,0 +1,21 @@
+src/features/git_ai.py
+  s_3c0d604e90e80f::t_ef25d989134a57 1-134
+src/core/engine.py
+  s_3c0d604e90e80f::t_8337a41a57506c 222-234,236,240-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "ccfa7b6f010481d9ede65d0c5b8f423b689a119b",
+  "prompts": {},
+  "sessions": {
+    "s_3c0d604e90e80f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8682256-a2c3-44d4-8b99-da7c7f48460f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
