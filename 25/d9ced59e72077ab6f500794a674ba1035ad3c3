@@ -1,0 +1,19 @@
+src/core/context.py
+  s_9b42ca76cb0f10::t_2ecdee468651b9 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "25d9ced59e72077ab6f500794a674ba1035ad3c3",
+  "prompts": {},
+  "sessions": {
+    "s_9b42ca76cb0f10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f839910-3d0f-42da-8eb0-54012239b211",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
