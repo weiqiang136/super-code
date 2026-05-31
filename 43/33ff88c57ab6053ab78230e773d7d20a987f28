@@ -1,0 +1,19 @@
+src/features/plan.py
+  s_2f77830c38c57a::t_6741459305e8aa 87-95,97-99,104-119,129-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4333ff88c57ab6053ab78230e773d7d20a987f28",
+  "prompts": {},
+  "sessions": {
+    "s_2f77830c38c57a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72cce529-e29e-4397-adfb-8de1b01e0fd9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
