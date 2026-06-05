@@ -1,0 +1,22 @@
+src/core/engine.py
+  s_2f77830c38c57a::t_515470db49548e 226-231
+  s_2f77830c38c57a::t_02559c2910ee2f 38-39
+src/features/plan.py
+  s_2f77830c38c57a::t_843f13b93543b4 260-271,273-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0e83e5ab57854b278192e3d8e19371dfade68d73",
+  "prompts": {},
+  "sessions": {
+    "s_2f77830c38c57a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72cce529-e29e-4397-adfb-8de1b01e0fd9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
