@@ -1,0 +1,20 @@
+src/core/context.py
+  s_2f77830c38c57a::t_b26048994cfb06 207
+  s_2f77830c38c57a::t_78b05193c829d5 28-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8b632b29baa476f191430951843bbd4b95f7eaf0",
+  "prompts": {},
+  "sessions": {
+    "s_2f77830c38c57a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72cce529-e29e-4397-adfb-8de1b01e0fd9",
+        "model": "claude-opus-4.7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
