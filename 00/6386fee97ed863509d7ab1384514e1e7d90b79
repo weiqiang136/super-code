@@ -1,0 +1,19 @@
+src/core/session.py
+  s_08cde881295787::t_c8406fa3971508 216-223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "006386fee97ed863509d7ab1384514e1e7d90b79",
+  "prompts": {},
+  "sessions": {
+    "s_08cde881295787": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4557b78-0833-4ea1-b916-d671cec0b323",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
