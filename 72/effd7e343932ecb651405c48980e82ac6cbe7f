@@ -1,0 +1,23 @@
+src/tools/skill.py
+  s_dde5723215a551::t_cf588ee21234b0 1-105
+src/features/skills.py
+  s_dde5723215a551::t_ad0f5b8d1bc137 256-261,266-273,276,279-280
+src/tui/app.py
+  s_dde5723215a551::t_104b18c4e41804 239,241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "72effd7e343932ecb651405c48980e82ac6cbe7f",
+  "prompts": {},
+  "sessions": {
+    "s_dde5723215a551": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f42f9cc-dbbc-4f0c-a733-3476ebed8356",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
