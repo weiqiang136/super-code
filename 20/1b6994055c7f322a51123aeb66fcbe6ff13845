@@ -1,0 +1,23 @@
+src/features/find_relevant_memories.py
+  s_d9074406b22943::t_f3da9b0b534df7 1-228
+tests/test_find_relevant_memories.py
+  s_d9074406b22943::t_f4cd8ba57a5f63 1-277
+src/tui/app.py
+  s_d9074406b22943::t_da0a3cf7132f54 413-428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "201b6994055c7f322a51123aeb66fcbe6ff13845",
+  "prompts": {},
+  "sessions": {
+    "s_d9074406b22943": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f150b27-a26b-4272-9143-e911c061d3da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
