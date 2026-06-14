@@ -1,0 +1,51 @@
+src/tui/query.py
+  s_4fd2b88aa65d4a::t_b18bbbb6b36244 120
+  s_4fd2b88aa65d4a::t_e31c83f0e5d29d 7
+  s_4fd2b88aa65d4a::t_823d6d0babde52 104-105,107
+src/commands/__init__.py
+  s_80589495803f2c::t_dd36997f0232fc 203
+  s_80589495803f2c::t_3a8af130a11c48 10
+  s_80589495803f2c::t_6bbe2b3da546e7 174
+src/core/engine.py
+  s_8cc0f8a2e15e47::t_a8e7e7ebe5f7f5 3,12-18
+  s_8cc0f8a2e15e47::t_bd51d89f2d4ec6 106-108
+  s_8cc0f8a2e15e47::t_753d2dddcfbe29 138-158,161
+src/tui/app.py
+  s_80589495803f2c::t_ee2a8997a3d161 441
+  s_80589495803f2c::t_7c29fb8868c0a9 504-505
+  s_8cc0f8a2e15e47::t_644cd751646129 5
+  s_80589495803f2c::t_d8e4434d027785 13
+  s_8cc0f8a2e15e47::t_a887f02a5039e9 305-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d3561976ef88f047e923351ad268bffa9d49b781",
+  "prompts": {},
+  "sessions": {
+    "s_4fd2b88aa65d4a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "98533643ec114b38b250fd3d59b45ce2",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    },
+    "s_80589495803f2c": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "5dd1000ab2d8470b90b76f024e7f1271",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    },
+    "s_8cc0f8a2e15e47": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf86ad53-e438-4fa4-bf1d-3f27a6e75902",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
