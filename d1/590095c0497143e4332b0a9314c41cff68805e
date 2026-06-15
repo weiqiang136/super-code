@@ -1,0 +1,33 @@
+src/tui/query.py
+  s_3049693b7ee520::t_8b13bda3e092a4 105-110
+  s_3049693b7ee520::t_1d7af88b28d79a 9
+  s_3049693b7ee520::t_32c38c168e378e 127-133
+src/core/engine.py
+  s_3049693b7ee520::t_a44173bc19a1d3 206-207,210-211
+  s_3049693b7ee520::t_19f5f1fb4c391a 307
+  s_3049693b7ee520::t_1fe585d11ee36c 315-322
+  s_3049693b7ee520::t_54eaee292e2b67 289-292,300-306
+  s_3049693b7ee520::t_12d7cda82d421c 343,345
+  s_3049693b7ee520::t_37e8997de66131 18-22,26-29
+  s_3049693b7ee520::t_3501501e41e328 265
+  s_3049693b7ee520::t_e80291143740af 224-235
+  s_3049693b7ee520::t_e5713bef3535ff 244-247,255-257,259-264
+  s_3049693b7ee520::t_82b5d83913013f 337-340,346
+  s_3049693b7ee520::t_9cebd96aff7d1d 344
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d1590095c0497143e4332b0a9314c41cff68805e",
+  "prompts": {},
+  "sessions": {
+    "s_3049693b7ee520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e40d2ed0-fe52-49cb-9c97-02d9bde48016",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
