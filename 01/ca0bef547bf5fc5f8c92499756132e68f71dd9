@@ -1,0 +1,24 @@
+src/tui/app.py
+  s_3049693b7ee520::t_4d106b5ef3537b 239-241
+  s_3049693b7ee520::t_be8cfa254e2627 9
+src/core/engine.py
+  s_3049693b7ee520::t_cbc651a3740d65 64-66
+  s_3049693b7ee520::t_754b70dff5d930 370-371,383-384
+  s_3049693b7ee520::t_b17b70dad37226 49-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "01ca0bef547bf5fc5f8c92499756132e68f71dd9",
+  "prompts": {},
+  "sessions": {
+    "s_3049693b7ee520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e40d2ed0-fe52-49cb-9c97-02d9bde48016",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
