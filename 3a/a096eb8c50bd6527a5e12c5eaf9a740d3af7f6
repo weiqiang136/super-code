@@ -1,0 +1,19 @@
+test_verify.txt
+  s_75b882204a1675::t_f984197c98f849 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "3aa096eb8c50bd6527a5e12c5eaf9a740d3af7f6",
+  "prompts": {},
+  "sessions": {
+    "s_75b882204a1675": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "verify-002",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
