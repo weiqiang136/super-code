@@ -1,0 +1,19 @@
+test_c.txt
+  s_43c1aaf029ecec::t_0e92c091648534 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "30736839a5d70ca75dab179c1f6275d6db4a8b85",
+  "prompts": {},
+  "sessions": {
+    "s_43c1aaf029ecec": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "c-001",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
