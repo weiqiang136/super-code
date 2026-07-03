@@ -1,0 +1,41 @@
+src/core/sandbox/blacklist.py
+  s_7d66948c99c693::t_1d9ee5348dc666 12
+  s_7d66948c99c693::t_26806cc81f3076 154-161
+src/tools/file_read.py
+  s_7d66948c99c693::t_54e55e6a72ad6d 37-39
+  s_7d66948c99c693::t_d26be4751d146c 69-74
+src/core/sandbox/__init__.py
+  s_7d66948c99c693::t_c45324678e7d57 6-8
+src/tools/bash.py
+  s_7d66948c99c693::t_49dff781a521d3 3,9-11
+  s_7d66948c99c693::t_75e4332d8651e2 47-53
+src/core/sandbox/path_protection.py
+  s_7d66948c99c693::t_9e98577c3b6aae 12
+  s_7d66948c99c693::t_24e444378f0335 33,37-38
+  s_7d66948c99c693::t_8b0d98ea8546d4 3-10,15-32,34,36,40-88,91-92,95-122
+  s_7d66948c99c693::t_212db907816dd1 35
+  s_7d66948c99c693::t_d1e4f3ca3c7042 123-126
+src/tools/file_edit.py
+  s_7d66948c99c693::t_bed778fa4359ca 36-38,45-50
+src/tui/app.py
+  s_7d66948c99c693::t_7e2b16fc9016ea 239-241
+  s_7d66948c99c693::t_32261281fa62b5 262-264
+src/tools/file_write.py
+  s_7d66948c99c693::t_96621dc273ba0d 29-31,37-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c540109f44c7206e5fa67f9db9658366558dcadd",
+  "prompts": {},
+  "sessions": {
+    "s_7d66948c99c693": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "551dc586858d4a278fb53600527ba874",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
