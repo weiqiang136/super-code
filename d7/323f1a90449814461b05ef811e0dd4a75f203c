@@ -1,0 +1,20 @@
+src/features/compact.py
+  s_e29df85edd6c74::t_e3698fa4671307 351-367
+  s_e29df85edd6c74::t_9ff7722644e2c8 559-576,578-585,591-597,603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d7323f1a90449814461b05ef811e0dd4a75f203c",
+  "prompts": {},
+  "sessions": {
+    "s_e29df85edd6c74": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "1b1e6f6d71a245baae17f45f7049ec08",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
