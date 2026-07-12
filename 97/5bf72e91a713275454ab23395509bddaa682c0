@@ -1,0 +1,50 @@
+src/core/file_state.py
+  s_12e43fed4f46cf::t_4c3617f9e7d265 215,221-223
+  s_12e43fed4f46cf::t_abd8531fcea540 129-131
+  s_12e43fed4f46cf::t_1ed4b2cbb1587e 261
+  s_12e43fed4f46cf::t_7bf134649e2f71 15-34,38-39,46-122,127-128,132-164,169-177,180-203,209-212,226-260,262-279
+  s_12e43fed4f46cf::t_764f6d1cb9fd22 178
+  s_12e43fed4f46cf::t_65f0874a9a8e09 35
+src/tools/file_read.py
+  s_12e43fed4f46cf::t_bf542911ede031 5-9
+  s_12e43fed4f46cf::t_d816e1c003d41f 115-122,124-136,157-158,161-163
+  s_12e43fed4f46cf::t_750b5abadfaea6 42,44-48
+  s_12e43fed4f46cf::t_b7f56516810820 69-77
+  s_12e43fed4f46cf::t_bc12f45bc74ee2 151-156,159-160,164-176
+  s_12e43fed4f46cf::t_18c400a7030341 185-199
+src/core/tool.py
+  s_12e43fed4f46cf::t_e4edca9d8c0fed 11
+tests/test_file_state_phase1.py
+  s_12e43fed4f46cf::t_f403a4f205b156 208-283
+  s_12e43fed4f46cf::t_e73442e0fd64c5 1-25,29-207
+  s_12e43fed4f46cf::t_c0ab5be6b65e01 26-28
+tests/test_compact_split_recent.py
+  s_e29df85edd6c74::t_8d7566bf687163 86,96
+  s_e29df85edd6c74::t_0b63546e0a31f8 8-9,14-83,94-95,99-120
+  s_e29df85edd6c74::t_9c814ea4c699d8 10-11
+  s_e29df85edd6c74::t_f9c91ec1d8a668 123-131,139-190,196-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "975bf72e91a713275454ab23395509bddaa682c0",
+  "prompts": {},
+  "sessions": {
+    "s_12e43fed4f46cf": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "8d0a782ef7554967b9186ce9213c2444",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    },
+    "s_e29df85edd6c74": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "1b1e6f6d71a245baae17f45f7049ec08",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
