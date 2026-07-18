@@ -1,0 +1,21 @@
+tests/test_memory_types.py
+  s_0ab29ce0140f14::t_0e2e705c256bb8 20
+src/features/skills.py
+  s_0ab29ce0140f14::t_d6a36314dc0f29 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "333f14a2324a0a15f846e23fe0bbd6ad47f1c1f2",
+  "prompts": {},
+  "sessions": {
+    "s_0ab29ce0140f14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "905e7e0f-6a01-44df-b42e-120f80be5d63",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
