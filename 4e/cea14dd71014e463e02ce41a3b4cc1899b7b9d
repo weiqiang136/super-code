@@ -1,0 +1,58 @@
+src/tui/app.py
+  s_0ab29ce0140f14::t_7fed4c44ecb3d7 533
+  s_0ab29ce0140f14::t_441c5ca4bb5535 432
+src/core/engine.py
+  s_0ab29ce0140f14::t_1763d900b30bcf 18
+src/features/skills.py
+  s_0ab29ce0140f14::t_567003cbcdc5d9 121-122
+  s_0ab29ce0140f14::t_184f854e129274 25
+  s_0ab29ce0140f14::t_2b160face30344 61
+src/features/memory_types.py
+  s_0ab29ce0140f14::t_0262ae640ff66e 3-5,8,10
+src/commands/__init__.py
+  s_0ab29ce0140f14::t_22e89b8d475e2e 75
+src/features/memory_age.py
+  s_0ab29ce0140f14::t_b5f9e54c385972 3
+src/features/find_relevant_memories.py
+  s_0ab29ce0140f14::t_fd398629b42f12 31
+src/core/session.py
+  s_0ab29ce0140f14::t_94505dcae564dc 43
+src/features/compact.py
+  s_0ab29ce0140f14::t_d40973561732f5 59
+src/core/file_state.py
+  s_0ab29ce0140f14::t_45080f3948eb6b 8
+src/features/extract_memories.py
+  s_0ab29ce0140f14::t_43bd5d26e48d2a 1,3,14
+  s_0ab29ce0140f14::t_f2ccde8bac7d80 50
+  s_0ab29ce0140f14::t_bcfebc53b4c868 39
+  s_0ab29ce0140f14::t_dbe02417a9845f 309
+src/features/memory.py
+  s_0ab29ce0140f14::t_6a845ff7d558df 206
+  s_0ab29ce0140f14::t_c6fc21b7bc51d7 41
+  s_0ab29ce0140f14::t_37a61e92c12927 12
+  s_0ab29ce0140f14::t_45f703f454f204 48-49,54
+  s_0ab29ce0140f14::t_bfd183f68dda55 97
+  s_0ab29ce0140f14::t_5a28bdfc1e99bf 27
+  s_0ab29ce0140f14::t_1fd134f29accc7 109
+src/features/memory_scan.py
+  s_0ab29ce0140f14::t_834c78ef7d9548 7,12
+  s_0ab29ce0140f14::t_bafd496453ea75 26
+  s_0ab29ce0140f14::t_ececa6b33a1177 21
+  s_0ab29ce0140f14::t_aa13df34f41c87 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4ecea14dd71014e463e02ce41a3b4cc1899b7b9d",
+  "prompts": {},
+  "sessions": {
+    "s_0ab29ce0140f14": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "905e7e0f-6a01-44df-b42e-120f80be5d63",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
