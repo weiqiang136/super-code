@@ -1,0 +1,14 @@
+# 敏感文件
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# 构建产物
+build/
+dist/
+*.spec
