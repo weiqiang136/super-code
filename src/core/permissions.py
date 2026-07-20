@@ -22,10 +22,12 @@ _PLAN_MODE_WRITE_TOOLS = {"Edit", "Write"}
 class PermissionChecker:
     """Read-only tools are auto-allowed. Bash/writes prompt the user (y/n/always)."""
 
-    def __init__(self, auto_approve: bool = False, sandbox_manager=None):
+    def __init__(self, auto_approve: bool = False, sandbox_manager=None,
+                 prompt_handler=None):
         self._auto_approve = auto_approve                   # 是否自动批准所有工具
         self._sandbox_manager = sandbox_manager              # 沙箱管理器（用于 auto_approve_if_sandboxed）
-        self._always_allow: set[str] = set()                # 用户选择“总是允许”的工具集合
+        self._prompt_handler = prompt_handler                # 可注入的外部确认策略（Web UI 用）；None 则走 CLI 默认弹窗
+        self._always_allow: set[str] = set()                # 用户选择"总是允许"的工具集合
         self._esc_listener: EscListener | None = None       # ESC监听器
         self._plan_manager = None                           # 计划管理器
         self._mode: str = "default"                         # 当前模式
@@ -109,7 +111,16 @@ class PermissionChecker:
                 return "allow"
         return "deny"
 
+    def set_prompt_handler(self, handler) -> None:
+        """替换外部确认策略（WebSocket 重连时调用）。"""
+        self._prompt_handler = handler
+
     def _prompt_user(self, tool: Tool, inputs: dict) -> PermissionBehavior:
+        if self._prompt_handler is not None:
+            return self._prompt_handler(tool, inputs)
+        return self._default_prompt(tool, inputs)
+
+    def _default_prompt(self, tool: Tool, inputs: dict) -> PermissionBehavior:
         from rich.console import Console
         from prompt_toolkit.application import Application as PTApp
         from prompt_toolkit.key_binding import KeyBindings
