@@ -43,36 +43,62 @@
     return el;
   }
 
-  function connect() {
-    ws = new WebSocket(`ws://${location.host}/chat`);
-    ws.onopen = () => { connected = true; add('ai', '[已连接]'); };
-    ws.onmessage = (e) => {
-      const evt = JSON.parse(e.data);
-      switch (evt.type) {
-        case 'thinking': add('thinking', '思考中…'); break;
-        case 'text': {
-          const last = chat.lastElementChild;
-          if (last && last.classList.contains('ai') && last.dataset.streaming === '1') {
-            last.textContent += evt.text;
-          } else {
-            const el = add('ai', evt.text);
-            el.dataset.streaming = '1';
+  async function connect() {
+    // 创建会话 → 获取 session_id → 连接 WebSocket
+    try {
+      const resp = await fetch('/api/sessions', { method: 'POST' });
+      const data = await resp.json();
+      const sid = data.session_id;
+      add('ai', `[会话: ${sid.slice(0, 8)}…]`);
+
+      ws = new WebSocket(`ws://${location.host}/chat/${sid}`);
+      ws.onopen = () => { connected = true; };
+      ws.onmessage = (e) => {
+        const evt = JSON.parse(e.data);
+        switch (evt.type) {
+          case 'history':
+            evt.messages.forEach(m => {
+              if (m.role === 'user') {
+                add('user', typeof m.content === 'string' ? m.content : JSON.stringify(m.content));
+              } else if (m.role === 'assistant') {
+                const c = m.content;
+                if (typeof c === 'string') add('ai', c);
+                else if (Array.isArray(c)) {
+                  c.forEach(b => {
+                    if (b.type === 'tool_use') add('tool', `↳ ${b.name}(${JSON.stringify(b.input).slice(0,80)}…)`);
+                    else if (b.type === 'text') add('ai', b.text);
+                  });
+                }
+              }
+            });
+            break;
+          case 'thinking': add('thinking', '思考中…'); break;
+          case 'text': {
+            const last = chat.lastElementChild;
+            if (last && last.classList.contains('ai') && last.dataset.streaming === '1') {
+              last.textContent += evt.text;
+            } else {
+              const el = add('ai', evt.text);
+              el.dataset.streaming = '1';
+            }
+            break;
           }
-          break;
+          case 'tool_call':
+            add('tool', `↳ ${evt.tool_name}(${JSON.stringify(evt.tool_input).slice(0, 80)}…)`); break;
+          case 'tool_result':
+            add('tool', `  ← ${evt.tool_name}: ${(evt.tool_content || '').slice(0, 120)}`); break;
+          case 'waiting':
+            if (chat.lastElementChild) chat.lastElementChild.dataset.streaming = '0'; break;
+          case 'error':
+            add('error', 'Error: ' + evt.message); break;
+          case '_done': break;
         }
-        case 'tool_call':
-          add('tool', `↳ ${evt.tool_name}(${JSON.stringify(evt.tool_input).slice(0, 80)}…)`); break;
-        case 'tool_result':
-          add('tool', `  ← ${evt.tool_name}: ${(evt.tool_content || '').slice(0, 120)}`); break;
-        case 'waiting':
-          if (chat.lastElementChild) chat.lastElementChild.dataset.streaming = '0'; break;
-        case 'error':
-          add('error', 'Error: ' + evt.message); break;
-        case '_done': break;
-      }
-      chat.scrollTop = chat.scrollHeight;
-    };
-    ws.onclose = () => { connected = false; add('error', '[连接断开]'); };
+        chat.scrollTop = chat.scrollHeight;
+      };
+      ws.onclose = () => { connected = false; add('error', '[连接断开]'); };
+    } catch (err) {
+      add('error', '连接失败: ' + err.message);
+    }
   }
 
   function send() {
