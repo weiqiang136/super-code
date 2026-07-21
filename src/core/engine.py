@@ -316,6 +316,7 @@ class Engine:
                             tool_results.append({"type": "tool_result", "tool_use_id": tid,
                                                  "content": result.content, "is_error": result.is_error,
                                                  "metadata": result.metadata})
+                        continue
 
                     if is_concurrent and len(batch) > 1:
                         approved = []
