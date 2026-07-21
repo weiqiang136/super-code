@@ -154,6 +154,46 @@ def _trigger_auto_dream_bg(app_config, memory_dir: Path, session_store) -> bool:
     return True
 
 
+def _build_engine(
+    *,
+    app_config,
+    cwd: str,
+    sandbox=None,
+    permission_checker: PermissionChecker,
+    system_prompt: str,
+    session_store=None,
+    cost_tracker=None,
+    extra_tools: list | None = None,
+) -> Engine:
+    """构建 Engine 实例。CLI 和 Web 共用此工厂。"""
+    mcp_tools = load_mcp_tools(cwd)
+    from tools.skill import SkillTool   # 局部 import：避免 worker engine 误带
+    tools = [
+        FileReadTool(sandbox_manager=sandbox), GlobTool(), GrepTool(),
+        BashTool(sandbox_manager=sandbox),
+        FileEditTool(sandbox_manager=sandbox), FileWriteTool(sandbox_manager=sandbox),
+        AskUserQuestionTool(), WebFetchTool(), WebSearchTool(),
+        SkillTool(),
+        *mcp_tools,
+    ]
+    if extra_tools:
+        tools.extend(extra_tools)
+    return Engine(
+        tools=tools,
+        system_prompt=system_prompt,
+        permission_checker=permission_checker,
+        provider=app_config.provider,
+        api_key=app_config.api_key,
+        base_url=app_config.base_url,
+        model=app_config.model,
+        max_tokens=app_config.max_tokens,
+        session_store=session_store,
+        cost_tracker=cost_tracker,
+        timeout=app_config.timeout,
+        model_profiles=app_config.model_profiles,
+    )
+
+
 def main() -> None:
     print("\033]0;super-code\007", end="")  # 设置终端标题
     parser = argparse.ArgumentParser(prog="super-code", description="Minimal AI coding assistant")
@@ -254,31 +294,16 @@ def main() -> None:
 
     worker_manager = WorkerManager(build_worker_engine=_build_worker_engine)
 
-    # 主 engine 工具列表（含 AgentTool + Skill）
-    mcp_tools = load_mcp_tools(cwd)   # 读取 .mcp.json，启动 MCP server，返回工具代理列表
-    from tools.skill import SkillTool   # 局部 import：避免 worker engine 误带
-    tools = [
-        FileReadTool(sandbox_manager=sandbox), GlobTool(), GrepTool(), BashTool(sandbox_manager=sandbox),
-        FileEditTool(sandbox_manager=sandbox), FileWriteTool(sandbox_manager=sandbox),
-        AskUserQuestionTool(), WebFetchTool(), WebSearchTool(),
-        AgentTool(worker_manager), SendMessageTool(worker_manager), TaskStopTool(worker_manager),
-        SkillTool(),
-        *mcp_tools,
-    ]
-
-    engine = Engine(
-        tools=tools,
-        system_prompt=system_prompt,
+    engine = _build_engine(
+        app_config=app_config,
+        cwd=cwd,
+        sandbox=sandbox,
         permission_checker=permissions,
-        provider=app_config.provider,
-        api_key=app_config.api_key,
-        base_url=app_config.base_url,
-        model=app_config.model,
-        max_tokens=app_config.max_tokens,
+        system_prompt=system_prompt,
         session_store=session_store,
         cost_tracker=cost_tracker,
-        timeout=app_config.timeout,
-        model_profiles=app_config.model_profiles,
+        extra_tools=[AgentTool(worker_manager), SendMessageTool(worker_manager),
+                     TaskStopTool(worker_manager)],
     )
 
     # Plan mode manager — 先创建，再绑定 engine（避免循环依赖）
