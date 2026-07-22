@@ -221,6 +221,8 @@ def main() -> None:
                         help="Hours between auto-dream runs (default: 24)")
     parser.add_argument("--dream-min-sessions", type=int, metavar="N",
                         help="Minimum new sessions before auto-dream triggers (default: 5)")
+    parser.add_argument("--web", action="store_true", help="Launch Web UI instead of CLI REPL")
+    parser.add_argument("--web-port", type=int, default=8123, help="Web UI port (default: 8123)")
     args = parser.parse_args()
 
     try:
@@ -265,6 +267,13 @@ def main() -> None:
 
     permissions = PermissionChecker(auto_approve=args.auto_approve or args.mode == "dream",
                                     sandbox_manager=sandbox)
+
+    # --web 分支：启动 Web UI 并返回，不走 CLI REPL
+    if args.web:
+        from web.server import ChatServer
+        server = ChatServer(app_config=app_config, cwd=cwd, sandbox=sandbox)
+        server.run(port=args.web_port)
+        return
 
     # Session setup
     session_store = SessionStore(cwd=cwd, model=app_config.model)
