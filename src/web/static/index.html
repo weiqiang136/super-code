@@ -20,6 +20,18 @@
   .input-area button { padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
   .btn-send { background: #a78bfa; color: #fff; }
   .btn-stop { background: #2c2e33; color: #c9c9c9; }
+  /* 权限确认弹窗 */
+  #perm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+  #perm-overlay.show { display: flex; }
+  #perm-box { background: #1e1f22; border: 1px solid #3c3e44; border-radius: 12px; padding: 24px; max-width: 480px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  #perm-box h3 { color: #fbbf24; font-size: 16px; margin-bottom: 12px; }
+  #perm-box .perm-params { font-size: 13px; color: #a0a0a0; margin-bottom: 16px; max-height: 200px; overflow-y: auto; }
+  #perm-box .perm-params pre { margin: 4px 0 0 0; padding: 8px; background: #25262b; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+  #perm-box .perm-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  #perm-box .perm-btns button { padding: 8px 16px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-deny { background: #3c1f1f; color: #f87171; }
+  .btn-allow { background: #1f3c1f; color: #4ade80; }
+  .btn-always { background: #1f2f3c; color: #60a5fa; }
 </style>
 </head>
 <body>
@@ -28,6 +40,17 @@
   <textarea id="input" rows="1" placeholder="输入消息… (Enter 发送)"></textarea>
   <button class="btn-stop" onclick="stop()">停止</button>
   <button class="btn-send" onclick="send()">发送</button>
+</div>
+<div id="perm-overlay">
+  <div id="perm-box">
+    <h3 id="perm-title">权限确认</h3>
+    <div class="perm-params" id="perm-params"></div>
+    <div class="perm-btns">
+      <button class="btn-deny" onclick="resolvePerm('deny')">拒绝</button>
+      <button class="btn-allow" onclick="resolvePerm('allow')">允许</button>
+      <button class="btn-always" onclick="resolvePerm('always')">始终允许</button>
+    </div>
+  </div>
 </div>
 <script>
   const chat = document.getElementById('chat');
@@ -92,6 +115,8 @@
           case 'error':
             add('error', 'Error: ' + evt.message); break;
           case '_done': break;
+          case 'permission_request':
+            showPerm(evt.request_id, evt.tool_name, evt.inputs); break;
         }
         chat.scrollTop = chat.scrollHeight;
       };
@@ -111,7 +136,33 @@
   }
 
   function stop() {
-    if (ws) { ws.send('{"type":"abort"}'); add('thinking', '[已停止]'); }
+    if (ws) { ws.send('{"type":"stop"}'); add('thinking', '[已停止]'); }
+  }
+
+  /* ---- 权限确认弹窗 ---- */
+  let pendingPermId = null;
+
+  function showPerm(rid, toolName, inputs) {
+    pendingPermId = rid;
+    document.getElementById('perm-title').textContent = '权限确认: ' + toolName;
+    let html = '';
+    for (const [k, v] of Object.entries(inputs)) {
+      html += `<strong>${k}:</strong><pre>${escHtml(String(v))}</pre>`;
+    }
+    document.getElementById('perm-params').innerHTML = html;
+    document.getElementById('perm-overlay').classList.add('show');
+  }
+
+  function resolvePerm(choice) {
+    if (!pendingPermId || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({type: 'permission_response', request_id: pendingPermId, choice: choice}));
+    document.getElementById('perm-overlay').classList.remove('show');
+    pendingPermId = null;
+    add('tool', `[权限: ${choice}]`);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   ta.addEventListener('keydown', e => {

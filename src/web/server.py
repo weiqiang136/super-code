@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
+
+from web.permission import WebPermissionHandler
 
 # 确保 src/ 在 import 路径中（以模块方式运行时）
 _THIS_FILE = Path(__file__).resolve()
@@ -66,6 +69,8 @@ def _serialize_event(event: tuple) -> dict:
         result["tool_use_id"] = event[4]
     elif etype == "error":
         result["message"] = event[1]
+    elif etype == "permission_request":
+        result.update(event[1])
 
     return result
 
@@ -167,42 +172,73 @@ async def ws_chat(ws: WebSocket, session_id: str):
     loop = asyncio.get_running_loop()
     send_queue: asyncio.Queue = asyncio.Queue()
 
-    # 发送协程：从队列取出事件，推送到 WebSocket
+    # 后台发送任务：持续消费 send_queue，推送到 WebSocket
     async def _sender():
         while True:
             event = await send_queue.get()
-            if event[0] == "_done":
-                return
             try:
                 await ws.send_json(_serialize_event(event))
             except Exception:
-                return
+                break
+
+    sender_task = asyncio.create_task(_sender())
 
     try:
-        # 获取或创建 Engine（P2 仍用 auto_approve，P3 替换为 WebPermissionHandler）
-        checker = PermissionChecker(auto_approve=True)
-        engine = _registry.get_or_create_engine(session_id, checker, _system_prompt)
+        # 检查是否重连（已有 checker 表示 Engine 存活）
+        existing_checker = _registry.get_checker(session_id)
+        if existing_checker is not None:
+            handler = WebPermissionHandler(send_queue, loop)
+            existing_checker.set_prompt_handler(handler)
+            engine = _registry.get_or_create_engine(
+                session_id, existing_checker, _system_prompt,
+            )
+        else:
+            handler = WebPermissionHandler(send_queue, loop)
+            checker = PermissionChecker(prompt_handler=handler)
+            engine = _registry.get_or_create_engine(session_id, checker, _system_prompt)
 
-        # 发送历史消息给前端，恢复对话上下文
+        # 发送历史消息，恢复对话上下文
         history = _registry.get_messages(session_id)
         if history:
             await ws.send_json({"type": "history", "messages": history})
 
-        # 消息循环
+        # 消息循环：接收文本 / 权限响应 / 中止
         while True:
             raw = await ws.receive_text()
-            if not raw.strip():
+
+            # 尝试解析 JSON（权限响应/中止命令）
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                data = None
+
+            if data and data.get("type") == "permission_response":
+                handler.resolve(data["request_id"], data["choice"])
                 continue
 
-            # 提交用户消息 → 在线程池中迭代事件流
+            if data and data.get("type") == "abort":
+                engine.abort()
+                continue
+
+            if data and data.get("type") == "stop":
+                engine.abort()
+                continue
+
+            # 普通文本消息
+            if not raw.strip():
+                continue
             _executor.submit(_iterate, engine.submit(raw), send_queue, loop)
-            await _sender()
 
     except WebSocketDisconnect:
         pass
     except ValueError as e:
-        # 会话不存在
         await ws.send_json({"type": "error", "message": str(e)})
+    finally:
+        sender_task.cancel()
+        try:
+            await sender_task
+        except asyncio.CancelledError:
+            pass
 
 
 # ============================================================
