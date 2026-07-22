@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import atexit
 import json
 import sys
 import threading
@@ -113,6 +114,7 @@ class ChatServer:
         # FastAPI 应用
         self._app = FastAPI(title="super-code Web UI", docs_url=None, redoc_url=None)
         self._register_routes()
+        atexit.register(self.shutdown)
 
     # ------------------------------------------------------------------
     # 路由注册
@@ -177,12 +179,27 @@ class ChatServer:
             async def _sender():
                 while True:
                     event = await send_queue.get()
+                    if event[0] == "_kicked":
+                        try:
+                            await ws.send_json({"type": "kicked", "message": "会话已在其他标签页打开"})
+                        except Exception:
+                            pass
+                        break
+                    if event[0] == "_shutdown":
+                        try:
+                            await ws.send_json({"type": "shutdown", "message": "服务端关闭"})
+                        except Exception:
+                            pass
+                        break
                     try:
                         await ws.send_json(_serialize_event(event))
                     except Exception:
                         break
 
             sender_task = asyncio.create_task(_sender())
+
+            # 注册连接（踢旧连接）
+            registry.register_connection(session_id, send_queue)
 
             try:
                 # 重连检查
@@ -228,6 +245,7 @@ class ChatServer:
             except ValueError as e:
                 await ws.send_json({"type": "error", "message": str(e)})
             finally:
+                registry.unregister_connection(session_id, send_queue)
                 sender_task.cancel()
                 try:
                     await sender_task
@@ -235,8 +253,17 @@ class ChatServer:
                     pass
 
     # ------------------------------------------------------------------
-    # 启动
+    # 启动 & 关闭
     # ------------------------------------------------------------------
+
+    def shutdown(self):
+        """通知所有客户端，清理 Engine 和 MCP 资源。"""
+        self._registry.shutdown()
+        try:
+            from mcp.loader import shutdown_mcp
+            shutdown_mcp()
+        except Exception:
+            pass
 
     def run(self, port: int = 8123, open_browser: bool = True):
         """启动 uvicorn 服务器。"""

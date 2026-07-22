@@ -5,6 +5,7 @@ REST 端点只操作元数据，Engine 在 WebSocket 连接时延迟创建。
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 
@@ -24,6 +25,7 @@ class SessionRegistry:
         self._sessions: dict[str, SessionStore] = {}        # session_id → SessionStore
         self._engines: dict[str, Engine] = {}                # session_id → Engine
         self._checkers: dict[str, PermissionChecker] = {}   # session_id → PermissionChecker
+        self._active_queues: dict[str, asyncio.Queue] = {}  # session_id → send_queue（同会话互斥）
 
     # ------------------------------------------------------------------
     # 会话 CRUD（REST 端点用）
@@ -129,3 +131,34 @@ class SessionRegistry:
     def get_messages(self, session_id: str) -> list[dict]:
         """加载会话历史消息（WebSocket 连接时发给前端恢复对话）。"""
         return SessionStore.load_messages(session_id, self._cwd)
+
+    # ------------------------------------------------------------------
+    # 连接追踪 & 优雅关闭（Phase 5）
+    # ------------------------------------------------------------------
+
+    def register_connection(self, session_id: str, send_queue: asyncio.Queue):
+        """注册 WebSocket 连接。若同会话已有旧连接，踢旧接新。"""
+        old = self._active_queues.get(session_id)
+        if old is not None:
+            try:
+                old.put_nowait(("_kicked",))
+            except asyncio.QueueFull:
+                pass
+        self._active_queues[session_id] = send_queue
+
+    def unregister_connection(self, session_id: str, send_queue: asyncio.Queue):
+        """移除 WebSocket 连接追踪（仅当队列匹配，防止误删新连接）。"""
+        current = self._active_queues.get(session_id)
+        if current is send_queue:
+            self._active_queues.pop(session_id, None)
+
+    def shutdown(self):
+        """通知所有活跃客户端关闭，清理引擎资源。"""
+        for q in list(self._active_queues.values()):
+            try:
+                q.put_nowait(("_shutdown",))
+            except asyncio.QueueFull:
+                pass
+        self._active_queues.clear()
+        self._engines.clear()
+        self._checkers.clear()

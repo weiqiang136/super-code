@@ -34,13 +34,13 @@
 
   /* ---- 聊天区 ---- */
   #chat { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-  .msg { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-width: 100%; }
-  .msg.user { color: #a78bfa; }
-  .msg.ai { color: #c9c9c9; }
-  .msg.thinking { color: #707070; font-style: italic; }
-  .msg.tool { color: #4ade80; font-size: 13px; padding: 4px 8px; background: #25262b; border-radius: 4px; }
-  .msg.error { color: #f87171; }
-  .msg.info { color: #707070; font-size: 13px; }
+  .msg { font-size: 14px; line-height: 1.6; word-break: break-word; max-width: 78%; padding: 8px 14px; border-radius: 10px; }
+  .msg.user { align-self: flex-end; background: #2c2847; color: #d4ccf0; }
+  .msg.ai { align-self: flex-start; background: #1e1f22; color: #c9c9c9; white-space: pre-wrap; }
+  .msg.thinking { align-self: flex-start; color: #707070; font-style: italic; background: none; padding: 4px 0; }
+  .msg.tool { align-self: flex-start; color: #4ade80; font-size: 13px; padding: 4px 8px; background: #25262b; border-radius: 4px; max-width: 100%; }
+  .msg.error { align-self: center; color: #f87171; background: none; padding: 4px 0; font-size: 13px; }
+  .msg.info { align-self: center; color: #707070; font-size: 13px; background: none; padding: 4px 0; }
   .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #505050; font-size: 14px; }
 
   /* ---- 底部输入区 ---- */
@@ -316,6 +316,10 @@ function connectWS(sid) {
         if (chat.lastElementChild) chat.lastElementChild.dataset.streaming = '0'; break;
       case 'error':
         chatMsg('error', 'Error: ' + evt.message); break;
+      case 'kicked':
+        chatMsg('error', evt.message || '会话已在其他标签页打开'); enableInput(false); break;
+      case 'shutdown':
+        chatMsg('error', evt.message || '服务端已关闭'); enableInput(false); break;
       case '_done': break;
       case 'permission_request':
         showPerm(evt.request_id, evt.tool_name, evt.inputs); break;
