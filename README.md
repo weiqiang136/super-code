@@ -6,6 +6,10 @@
 
 super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接口接入大模型，让你在命令行里直接完成代码阅读、编写、重构、调试等任务，无需离开终端环境。
 
+<img width="1734" height="927" alt="动画02" src="https://github.com/user-attachments/assets/7323eab5-cc37-472a-bd8d-a561d0903928" />
+
+
+
 ## 特性
 
 - **多模型支持**：兼容 DeepSeek、OpenAI、GLM、Qwen 等所有 OpenAI 兼容接口
