@@ -48,6 +48,10 @@ def _iterate(gen, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None
         for event in gen:
             asyncio.run_coroutine_threadsafe(queue.put(event), loop)
     except Exception as exc:
+        # AbortedError 是用户主动中止（点停止/Ctrl+C），不是异常，静默结束
+        exc_name = type(exc).__name__
+        if exc_name == "AbortedError":
+            return
         asyncio.run_coroutine_threadsafe(
             queue.put(("error", f"Engine 执行异常：{exc}")), loop,
         )
