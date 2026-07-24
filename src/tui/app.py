@@ -289,6 +289,7 @@ def main() -> None:
 
     # Compact service — 复用 engine 内部的 LLMClient
     compact_service = CompactService(client=engine._client, model=app_config.model)
+    engine.set_compact_service(compact_service)  # 注入 engine 供轮内紧急压缩使用
 
     def _new_session_store() -> SessionStore:
         store = SessionStore(cwd=cwd, model=app_config.model)

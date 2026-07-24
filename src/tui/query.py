@@ -43,6 +43,12 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                     if not quiet and first_text:
                         spinner.start("Thinking…")
 
+                elif event[0] == "compact":
+                    # 轮内紧急压缩：在工具链中途触发，显示专用提示
+                    if not quiet:
+                        md_stream.flush()
+                        spinner.start("Compacting context…")
+
                 elif event[0] == "text":
                     if quiet:
                         continue

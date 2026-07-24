@@ -7,6 +7,7 @@ from typing import Iterator, Any
 from core.llm import LLMClient
 from core.tool import Tool, ToolResult
 from core.permissions import PermissionChecker
+from features.compact import estimate_tokens, get_context_window
 
 
 # Windows 终端粘贴 UTF-16 剪贴板时可能把代理对当成两个独立码点喂进 stdin，
@@ -29,6 +30,11 @@ _SIBLING_REJECT_MESSAGE = (
     "Tool execution skipped because the user rejected an earlier tool call in this batch. "
     "STOP what you are doing and wait for the user to tell you how to proceed."
 )
+
+
+# 轮内压缩触发比例：当估算 token 数达到 context window 的此比例时，在 while 循环
+# 内紧急压缩历史消息。0.9 留 10% 余量给压缩后的 compact prompt。
+_INTRA_TURN_COMPACT_TRIGGER_RATIO = 0.9
 
 
 class AbortedError(Exception):
@@ -70,6 +76,8 @@ class Engine:
         # 一次性回调列表：在每轮 tool_results append 到 _messages 之后触发并清空。
         # 用于 plan_manager.exit() 延迟执行历史清理（避免在工具执行中途清理导致时序问题）。
         self._post_tool_hooks: list = []  # 存储的是callable对象
+        # 轮内压缩服务：由 app.py 注入，用于在工具调用链中紧急压缩历史
+        self._compact_service = None
         # Phase 3: 向 Edit/Read/Write 工具注入当前会话 ID
         self._inject_session_id()
 
@@ -99,6 +107,10 @@ class Engine:
     def set_session_store(self, session_store) -> None:
         self._session_store = session_store
         self._inject_session_id()
+
+    def set_compact_service(self, compact_service) -> None:
+        """注入 CompactService，供轮内紧急压缩使用。"""
+        self._compact_service = compact_service
 
     def _inject_session_id(self) -> None:
         """Phase 3: 向支持 set_session_id 的工具注入当前会话 ID。"""
@@ -197,6 +209,42 @@ class Engine:
         if self._session_store:
             self._session_store.rollback_to_checkpoint()
 
+    def _intra_turn_compact(self) -> bool:
+        """压缩 _turn_start_len 之前的历史消息，保留本轮消息原封不动。
+
+        仅在 _compact_service 已注入、且有足够历史消息时才执行压缩。
+        成功后更新 _turn_start_len 指向新 messages 中本轮开始的位置，
+        确保 cancel_turn() 仍能正确截断。
+
+        Returns:
+            True 如果压缩成功执行，False 如果跳过（无压缩服务/历史不足/压缩失败）。
+        """
+        if self._compact_service is None:
+            return False
+        if self._turn_start_len is None or self._turn_start_len <= 0:
+            return False
+
+        history = self._messages[:self._turn_start_len]
+        current_turn = self._messages[self._turn_start_len:]
+
+        # 历史消息太少，不值得压缩
+        if len(history) < 10:
+            return False
+
+        try:
+            new_history, _summary = self._compact_service.compact(
+                messages=history,
+                system_prompt=self._system_prompt,
+            )
+            self._messages = new_history + current_turn
+            # 更新 _turn_start_len，保证 cancel_turn() 截断到正确位置
+            self._turn_start_len = len(new_history)
+            return True
+        except Exception:
+            # 压缩失败时静默返回 False，让本轮继续——下一次 LLM 调用
+            # 可能因超 context window 失败，但至少不因压缩异常而中断用户操作。
+            return False
+
     def submit(self, user_input: str | list) -> Iterator[tuple]:
         # 清洗 lone surrogate（仅 str 路径，list 路径由内部构造不会含非法码点）
         if isinstance(user_input, str):
@@ -216,6 +264,15 @@ class Engine:
             while True:
                 if self._aborted:
                     raise AbortedError()
+
+                # ── 轮内令牌守卫：消息量接近窗口上限时紧急压缩历史 ──
+                # 弥补轮间 compact 无法覆盖「单轮内连续读大文件导致消息暴涨」的盲区。
+                # 阈值设 0.9（而非 1.0），给压缩后的 compact prompt 留余量。
+                estimated = estimate_tokens(self._messages)
+                threshold = int(get_context_window(self._model) * _INTRA_TURN_COMPACT_TRIGGER_RATIO)
+                if estimated > threshold:
+                    yield ("compact",)
+                    self._intra_turn_compact()
 
                 tool_uses = []
                 tools_schema = [t.to_api_schema() for t in self._tools.values()] if self._tools else None
