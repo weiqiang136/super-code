@@ -78,6 +78,8 @@ class Engine:
         self._post_tool_hooks: list = []  # 存储的是callable对象
         # 轮内压缩服务：由 app.py 注入，用于在工具调用链中紧急压缩历史
         self._compact_service = None
+        # worker 通知回调：由 app.py 注入，每轮工具执行完成后 drain 通知队列
+        self._on_after_tools = None
         # Phase 3: 向 Edit/Read/Write 工具注入当前会话 ID
         self._inject_session_id()
 
@@ -111,6 +113,10 @@ class Engine:
     def set_compact_service(self, compact_service) -> None:
         """注入 CompactService，供轮内紧急压缩使用。"""
         self._compact_service = compact_service
+
+    def set_on_after_tools(self, callback) -> None:
+        """注入 worker 通知回调：每轮工具执行完成后调用，返回通知文本注入 _messages。"""
+        self._on_after_tools = callback
 
     def _inject_session_id(self) -> None:
         """Phase 3: 向支持 set_session_id 的工具注入当前会话 ID。"""
@@ -472,6 +478,19 @@ class Engine:
                     for hook in self._post_tool_hooks:
                         hook()
                     self._post_tool_hooks.clear()
+
+                # ── Mid-turn worker 通知注入 ──
+                # 在工具执行完成后、下一轮 LLM 调用前，检查 worker 完成通知。
+                # 有通知则作为 user message 注入 _messages，while 循环自然继续，
+                # 下一轮 LLM 调用自动看到通知内容。不需要递归 run_query。
+                if self._on_after_tools is not None:
+                    injected = self._on_after_tools()
+                    if injected:
+                        self._messages.append({"role": "user", "content": injected})
+                        if self._session_store:
+                            self._session_store.append_message(
+                                {"role": "user", "content": injected})
+                        yield ("notification", injected)
 
                 # 硬约束：本轮发生过 deny → 立即 break 出 while，不再走下一轮 LLM 调用。
                 # 专治 DeepSeek 等模型不听 REJECT_MESSAGE 里 STOP 指令、继续换工具骚扰

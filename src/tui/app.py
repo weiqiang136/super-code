@@ -291,6 +291,14 @@ def main() -> None:
     compact_service = CompactService(client=engine._client, model=app_config.model)
     engine.set_compact_service(compact_service)  # 注入 engine 供轮内紧急压缩使用
 
+    # 注入 worker 通知回调：engine 在每轮工具执行完成后 drain 通知队列，
+    # 将已完成 worker 的结果注入 conversation，coordinator 在同一 turn 内自动感知。
+    def _check_worker_notifications():
+        notifications = worker_manager.drain_notifications()
+        return "\n\n".join(notifications) if notifications else None
+
+    engine.set_on_after_tools(_check_worker_notifications)
+
     def _new_session_store() -> SessionStore:
         store = SessionStore(cwd=cwd, model=app_config.model)
         engine.set_session_store(store)

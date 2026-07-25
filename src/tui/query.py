@@ -49,6 +49,17 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                         md_stream.flush()
                         spinner.start("Compacting context…")
 
+                elif event[0] == "notification":
+                    # worker 完成通知：engine 在 mid-turn 注入了通知到对话中
+                    if not quiet:
+                        md_stream.flush()
+                        count = event[1].count("<task-notification>")
+                        console.print(
+                            f"[dim]Worker completed ({count}).[/dim]" if count > 1
+                            else "[dim]Worker completed.[/dim]"
+                        )
+                        spinner.start("Thinking…")
+
                 elif event[0] == "text":
                     if quiet:
                         continue
