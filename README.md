@@ -56,28 +56,74 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
 
 同名字段后加载者覆盖前者；三者可叠加使用（如全局放 api_key，项目级覆盖 model）。
 
-### 快速示例
+### 快速super-code.json示例
 
 **DeepSeek：**
 
 ```json
 {
+  // LLM 服务商标识，目前仅支持 "openai"
   "provider": "openai",
-  "api_key": "your-deepseek-api-key",
-  "base_url": "https://api.deepseek.com/v1",
-  "model": "deepseek-chat"
+
+  // 模型单次最大输出 token 数，131072 即 128K
+  "max_tokens": 131072,
+
+  // HTTP 读取超时（秒）。思考模型首 token 延迟极长，DeepSeek/GLM/Qwen 建议 ≥ 300
+  "timeout": 900.0,
+
+  // 使用的模型名（主要对话模型）
+  "model": "deepseek-v4-pro",
+
+  "api_key": "",
+
+  "base_url": "https://api.deepseek.com",
+
+  // 记忆相关性检索用的轻量模型。节省主要模型 token，仅用于判断哪些记忆与当前问题相关
+  "extract_model": "deepseek-v4-flash",
+
+  // 协调者模式：开启后可派生子 worker 并行工作
+  "coordinator": true,
+
+  // ========== 命令沙箱配置 ==========
+  "sandbox": {
+    // 总开关：true 启用沙箱（内置 30+ 条危险命令正则 + 可追加自定义规则）
+    "enabled": true,
+
+    // 精确命令名黑名单（如 "mkfs"），匹配命令的第一个单词
+    "blocked_commands": [],
+
+    // 额外正则规则列表，每项 [正则, 描述]，追加到内置规则后。示例：[["sudo reboot", "reboot with sudo"]]
+    "extra_patterns": [],
+
+    // 白名单豁免：以这些字符串开头的命令整体跳过沙箱检查
+    "excluded_commands": [],
+
+    // 沙箱激活时是否自动批准 Bash 调用（危险命令已被黑名单拦截，安全命令无需用户逐个确认）
+    "auto_approve_if_sandboxed": false,
+
+    // 网络外发域名白名单：非空时 curl/wget 只能访问列表中的域名
+    "allowed_domains": [],
+
+    // 网络外发域名黑名单：命中直接拒绝，优先级高于白名单
+    "denied_domains": []
+  },
+
+  // ========== 模型级微调参数（按模型名子串匹配） ==========
+  // 用于控制各模型的推理/思考行为，匹配到的 extra_body 会注入到 API 请求体
+  "model_profiles": {
+    "deepseek-v4-pro": {
+      "extra_body": {
+        // DeepSeek 推理强度设为最大（深度思考模式）
+        "reasoning_effort": "max",
+        "thinking": {
+          "type": "enabled"  // 显式开启思维链输出
+        }
+      }
+    }
+  }
 }
 ```
 
-**OpenAI：**
-
-```json
-{
-  "provider": "openai",
-  "api_key": "your-openai-api-key",
-  "model": "gpt-4o"
-}
-```
 
 ### 完整字段说明
 
