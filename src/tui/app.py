@@ -181,6 +181,12 @@ def main() -> None:
                         help="Hours between auto-dream runs (default: 24)")
     parser.add_argument("--dream-min-sessions", type=int, metavar="N",
                         help="Minimum new sessions before auto-dream triggers (default: 5)")
+    parser.add_argument("--voice", action="store_true",
+                        help="Enter voice conversation mode on startup")
+    parser.add_argument("--voice-enroll", metavar="NAME",
+                        help="Register a voiceprint with the given name, then exit")
+    parser.add_argument("--voice-wake-test", action="store_true",
+                        help="Wake word detection test (listening loop, Ctrl+C to exit)")
     args = parser.parse_args()
 
     try:

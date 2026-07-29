@@ -73,6 +73,21 @@ class AppConfig:
     model_profiles: dict = field(default_factory=dict)
     # 沙箱配置（原始 dict，由 sandbox 模块自己解析。None 表示未启用）
     sandbox: dict | None = None
+    # ── 语音模式（全双工语音对话）──
+    voice_enabled: bool = False                     # 是否启用语音功能
+    voice_stt_provider: str = "volcengine"          # STT 服务商: volcengine / aliyun_nls / openai_whisper
+    voice_stt_api_key: str = ""                     # STT API key（空则复用主 api_key）
+    voice_tts_voice: str = "zh-CN-YunxiNeural"      # Edge-TTS 音色（默认云希男声）
+    voice_vad_sensitivity: int = 2                  # VAD 灵敏度 (0-3, 0最敏感)
+    voice_interrupt_threshold: float = 0.3          # 打断检测阈值（秒）
+    voice_speaker_verification: bool = False        # 是否启用声纹身份验证
+    voice_speaker_threshold: float = 0.75           # 声纹相似度阈值 (0-1)
+    voice_wake_word_enabled: bool = False           # 是否启用唤醒词始终在线
+    voice_porcupine_access_key: str = ""            # Picovoice AccessKey（唤醒词必需）
+    voice_wake_word_ppn_path: str = ""              # 自定义唤醒词 .ppn 模型路径
+    voice_persona_style: str = "butler"             # 对话人格: butler / concise / casual
+    voice_auto_silence_timeout: int = 30            # 静默超时（秒，0=不自动退出）
+    voice_model: str = ""                           # 语音模式专用模型（空=复用主 model）
 
 
 # =========================
@@ -159,6 +174,23 @@ def load_app_config(args: Namespace) -> AppConfig:
     # 1️⃣1️⃣ 沙箱配置（仅从配置文件读取，or None 表示未启用）
     sandbox: dict | None = file_cfg.get("sandbox")
 
+    # 1️⃣2️⃣ 语音模式配置（从配置文件的 voice 节读取，全部有默认值）
+    voice_cfg: dict = file_cfg.get("voice") or {}
+    voice_enabled = bool(voice_cfg.get("enabled") or False)
+    voice_stt_provider = str(voice_cfg.get("stt_provider") or "volcengine")
+    voice_stt_api_key = str(voice_cfg.get("stt_api_key") or "")
+    voice_tts_voice = str(voice_cfg.get("tts_voice") or "zh-CN-YunxiNeural")
+    voice_vad_sensitivity = int(voice_cfg.get("vad_sensitivity") or 2)
+    voice_interrupt_threshold = float(voice_cfg.get("interrupt_threshold") or 0.3)
+    voice_speaker_verification = bool(voice_cfg.get("speaker_verification") or False)
+    voice_speaker_threshold = float(voice_cfg.get("speaker_threshold") or 0.75)
+    voice_wake_word_enabled = bool(voice_cfg.get("wake_word_enabled") or False)
+    voice_porcupine_access_key = str(voice_cfg.get("porcupine_access_key") or "")
+    voice_wake_word_ppn_path = str(voice_cfg.get("wake_word_ppn_path") or "")
+    voice_persona_style = str(voice_cfg.get("persona_style") or "butler")
+    voice_auto_silence_timeout = int(voice_cfg.get("auto_silence_timeout") or 30)
+    voice_model = str(voice_cfg.get("model") or "")
+
     return AppConfig(
         provider=provider,
         api_key=api_key,
@@ -174,6 +206,20 @@ def load_app_config(args: Namespace) -> AppConfig:
         timeout=timeout,
         model_profiles=model_profiles,
         sandbox=sandbox,
+        voice_enabled=voice_enabled,
+        voice_stt_provider=voice_stt_provider,
+        voice_stt_api_key=voice_stt_api_key,
+        voice_tts_voice=voice_tts_voice,
+        voice_vad_sensitivity=voice_vad_sensitivity,
+        voice_interrupt_threshold=voice_interrupt_threshold,
+        voice_speaker_verification=voice_speaker_verification,
+        voice_speaker_threshold=voice_speaker_threshold,
+        voice_wake_word_enabled=voice_wake_word_enabled,
+        voice_porcupine_access_key=voice_porcupine_access_key,
+        voice_wake_word_ppn_path=voice_wake_word_ppn_path,
+        voice_persona_style=voice_persona_style,
+        voice_auto_silence_timeout=voice_auto_silence_timeout,
+        voice_model=voice_model,
     )
 
 
