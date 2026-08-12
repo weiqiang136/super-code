@@ -76,7 +76,10 @@ class AppConfig:
     # ── 语音模式（全双工语音对话）──
     voice_enabled: bool = False                     # 是否启用语音功能
     voice_stt_provider: str = "volcengine"          # STT 服务商: volcengine / aliyun_nls / openai_whisper
-    voice_stt_api_key: str = ""                     # STT API key（空则复用主 api_key）
+    voice_stt_api_key: str = ""                     # STT API key（空则复用主 api_key，仅 openai_whisper 用）
+    voice_stt_volcengine_app_id: str = ""           # 火山引擎应用 AppID（一句话识别必需）
+    voice_stt_volcengine_token: str = ""            # 火山引擎应用 token（Bearer 认证）
+    voice_stt_volcengine_cluster: str = ""          # 火山引擎请求集群名（如 volcano_icloud_common / bigmodel）
     voice_tts_voice: str = "zh-CN-YunxiNeural"      # Edge-TTS 音色（默认云希男声）
     voice_vad_sensitivity: int = 2                  # VAD 灵敏度 (0-3, 0最敏感)
     voice_interrupt_threshold: float = 0.3          # 打断检测阈值（秒）
@@ -179,6 +182,9 @@ def load_app_config(args: Namespace) -> AppConfig:
     voice_enabled = bool(voice_cfg.get("enabled") or False)
     voice_stt_provider = str(voice_cfg.get("stt_provider") or "volcengine")
     voice_stt_api_key = str(voice_cfg.get("stt_api_key") or "")
+    voice_stt_volcengine_app_id = str(voice_cfg.get("volcengine_app_id") or "")
+    voice_stt_volcengine_token = str(voice_cfg.get("volcengine_token") or "")
+    voice_stt_volcengine_cluster = str(voice_cfg.get("volcengine_cluster") or "")
     voice_tts_voice = str(voice_cfg.get("tts_voice") or "zh-CN-YunxiNeural")
     voice_vad_sensitivity = int(voice_cfg.get("vad_sensitivity") or 2)
     voice_interrupt_threshold = float(voice_cfg.get("interrupt_threshold") or 0.3)
@@ -209,6 +215,9 @@ def load_app_config(args: Namespace) -> AppConfig:
         voice_enabled=voice_enabled,
         voice_stt_provider=voice_stt_provider,
         voice_stt_api_key=voice_stt_api_key,
+        voice_stt_volcengine_app_id=voice_stt_volcengine_app_id,
+        voice_stt_volcengine_token=voice_stt_volcengine_token,
+        voice_stt_volcengine_cluster=voice_stt_volcengine_cluster,
         voice_tts_voice=voice_tts_voice,
         voice_vad_sensitivity=voice_vad_sensitivity,
         voice_interrupt_threshold=voice_interrupt_threshold,

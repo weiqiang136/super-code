@@ -187,12 +187,30 @@ def main() -> None:
                         help="Register a voiceprint with the given name, then exit")
     parser.add_argument("--voice-wake-test", action="store_true",
                         help="Wake word detection test (listening loop, Ctrl+C to exit)")
+    parser.add_argument("--voice-test", action="store_true",
+                        help="Voice STT test: record and print transcription")
     args = parser.parse_args()
 
     try:
         app_config = load_app_config(args)
     except ValueError as exc:
         parser.error(str(exc))
+
+    # ── voice test mode: record + transcribe, then exit ──
+    if getattr(args, "voice_test", False):
+        from support.voice import test_record
+        # STT key：voice_stt_api_key 优先，空则复用主 api_key（仅 openai_whisper 用）
+        stt_key = app_config.voice_stt_api_key or app_config.api_key or ""
+        text = test_record(
+            api_key=stt_key,
+            provider=app_config.voice_stt_provider,
+            base_url=app_config.base_url or "",
+            volcengine_app_id=app_config.voice_stt_volcengine_app_id,
+            volcengine_token=app_config.voice_stt_volcengine_token,
+            volcengine_cluster=app_config.voice_stt_volcengine_cluster,
+        )
+        console.print(f"[green]识别结果:[/green] {text}")
+        return
 
     if args.coordinator or app_config.coordinator:
         set_coordinator_mode(True)
