@@ -523,6 +523,19 @@ class Engine:
         repo_dir = self._repo_dir_override or (
             self._session_store.cwd if self._session_store else "")
 
+        # Edit 的 file_path 是可选字段，LLM 通常只传 snippet_id 不传 file_path。
+        # 若缺失则通过 snippet_id 查文件状态拿到真实路径，否则 checkpoint 会发
+        # edited_filepaths=[] 导致 git-ai 无法归属本次修改。
+        if is_write and not file_path and tool_name == "Edit":
+            _snippet_id = tool_input.get("snippet_id", "")
+            if _snippet_id:
+                from core.file_state import get_snippet
+                _sess = self._agent_session_id_override or (
+                    self._session_store.session_id if self._session_store else "unknown")
+                _snip = get_snippet(_sess, _snippet_id)
+                if _snip:
+                    file_path = _snip.file_path
+
         if is_write and repo_dir:
             before_edit(repo_dir, file_path)
 
@@ -532,10 +545,11 @@ class Engine:
             return ToolResult(f"Tool error: {e}", is_error=True)
 
         if is_write and repo_dir and not result.is_error:
-            # 编辑成功后标记为 AI 代码，传入当前消息历史、模型名、会话 ID
+            # 兜底：Edit 成功时 metadata 里也带有 file_path
+            resolved_path = file_path or (result.metadata or {}).get("file_path", "")
             session_id = self._agent_session_id_override or (
                 self._session_store.session_id if self._session_store else "unknown")
-            after_edit(repo_dir, file_path, self._messages, self._model, session_id)
+            after_edit(repo_dir, resolved_path, self._messages, self._model, session_id)
 
         return result
 
