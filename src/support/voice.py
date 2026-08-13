@@ -279,29 +279,31 @@ def recognize_speech(
     provider: str = "volcengine",
     api_key: str = "",
     base_url: str = "",
-    volcengine_app_id: str = "",
-    volcengine_token: str = "",
-    volcengine_cluster: str = "",
+    stt_params: dict | None = None,
 ) -> str:
     """将原始 16kHz PCM 音频转成文字。
 
     Providers:
     - ``volcengine``（默认）：火山引擎一句话识别（极速版），HTTP 一次性请求。
-      凭证：app_id + token + cluster（火山控制台"语音技术 → 应用管理"获取）。
+      凭证在 ``stt_params``：{app_id, token, cluster}（火山控制台"语音技术 → 应用管理"获取）。
     - ``aliyun_nls``：阿里云 NLS 一句话识别 RESTful API。
     - ``openai_whisper``：OpenAI Whisper API。回退到主 ``api_key`` / ``base_url``。
 
+    ``stt_params`` 为厂商私有参数字典，各 provider 自己取用，互不干扰——
+    换厂商只需改 ``provider`` 和对应参数，调用方无需关心其他厂商的字段。
     返回识别文本；失败时返回 ``"[未识别]"``。
     """
     if not pcm or len(pcm) < FRAME_SIZE * 2:
         return ""
 
+    params: dict = stt_params or {}
+
     if provider == "volcengine":
         return _recognize_volcengine(
             pcm,
-            app_id=volcengine_app_id,
-            token=volcengine_token,
-            cluster=volcengine_cluster,
+            app_id=params.get("app_id", ""),
+            token=params.get("token", ""),
+            cluster=params.get("cluster", ""),
         )
     elif provider == "aliyun_nls":
         return _recognize_aliyun_nls(pcm, api_key=api_key)
@@ -313,9 +315,9 @@ def recognize_speech(
         logging.warning(f"未知 STT provider '{provider}'，回退到 volcengine")
         return _recognize_volcengine(
             pcm,
-            app_id=volcengine_app_id,
-            token=volcengine_token,
-            cluster=volcengine_cluster,
+            app_id=params.get("app_id", ""),
+            token=params.get("token", ""),
+            cluster=params.get("cluster", ""),
         )
 
 
@@ -499,9 +501,7 @@ def test_record(
     api_key: str = "",
     provider: str = "volcengine",
     base_url: str = "",
-    volcengine_app_id: str = "",
-    volcengine_token: str = "",
-    volcengine_cluster: str = "",
+    stt_params: dict | None = None,
 ) -> str:
     """从麦克风录音直到静默（~5s 上限），转文字，返回文本。
 
@@ -525,7 +525,5 @@ def test_record(
         provider=provider,
         api_key=api_key,
         base_url=base_url,
-        volcengine_app_id=volcengine_app_id,
-        volcengine_token=volcengine_token,
-        volcengine_cluster=volcengine_cluster,
+        stt_params=stt_params,
     )

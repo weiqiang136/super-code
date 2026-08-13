@@ -205,9 +205,7 @@ def main() -> None:
             api_key=stt_key,
             provider=app_config.voice_stt_provider,
             base_url=app_config.base_url or "",
-            volcengine_app_id=app_config.voice_stt_volcengine_app_id,
-            volcengine_token=app_config.voice_stt_volcengine_token,
-            volcengine_cluster=app_config.voice_stt_volcengine_cluster,
+            stt_params=app_config.voice_stt_params,
         )
         console.print(f"[green]识别结果:[/green] {text}")
         return
