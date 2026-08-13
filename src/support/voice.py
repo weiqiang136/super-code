@@ -527,3 +527,40 @@ def test_record(
         base_url=base_url,
         stt_params=stt_params,
     )
+
+
+def voice_enroll(name: str, storage_dir: str | None = None) -> str:
+    """声纹注册：录 3 秒语音 → 提取嵌入向量 → 保存到声纹库。
+
+    供 ``--voice-enroll NAME`` CLI 使用。
+    ``storage_dir`` 缺省为 ``~/.config/super-code``（与全局配置同目录）。
+    返回结果消息（成功/失败），由调用方打印。
+    """
+    from pathlib import Path as _Path
+    from support.voiceprint import VoiceprintManager
+
+    if storage_dir is None:
+        storage_dir = _Path.home() / ".config" / "super-code"
+    mgr = VoiceprintManager(storage_dir)
+
+    print("🔊 请说 'super-code 语音验证'（录音 3 秒）…")
+    rec = VoiceRecorder(vad_sensitivity=2)
+    rec.start()
+    # 录 3 秒（或检测到语音结束提前返回）
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        if rec._utterance_done.is_set():
+            break
+        time.sleep(0.1)
+    rec.cancel()
+    pcm = rec.get_audio()
+    if not pcm or len(pcm) < FRAME_SIZE * 2:  # < 30ms 视为无效
+        return "❌ 未检测到语音，注册取消"
+    path = mgr.enroll(name, pcm)
+    if path is None:
+        # enroll 返回 None 有两种原因：模型不可用 或 音频无效
+        from support.voiceprint import _get_encoder
+        if _get_encoder() is None:
+            return "❌ 声纹模型不可用，注册失败"
+        return "❌ 音频无效（可能太短或太安静），请重新录音"
+    return f"✅ 声纹 '{name}' 注册成功 → {path}"

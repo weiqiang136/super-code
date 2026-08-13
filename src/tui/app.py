@@ -196,6 +196,13 @@ def main() -> None:
     except ValueError as exc:
         parser.error(str(exc))
 
+    # ── 声纹注册模式：录 3 秒 → 保存声纹 → 退出 ──
+    if getattr(args, "voice_enroll", None):
+        from support.voice import voice_enroll
+        result = voice_enroll(args.voice_enroll)
+        console.print(f"[green]{result}[/green]")
+        return
+
     # ── voice test mode: record + transcribe, then exit ──
     if getattr(args, "voice_test", False):
         from support.voice import test_record
