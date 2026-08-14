@@ -564,3 +564,150 @@ def voice_enroll(name: str, storage_dir: str | None = None) -> str:
             return "❌ 声纹模型不可用，注册失败"
         return "❌ 音频无效（可能太短或太安静），请重新录音"
     return f"✅ 声纹 '{name}' 注册成功 → {path}"
+
+
+# =============================================================================
+# TTS：Edge-TTS 语音合成 + 播放（Phase 2）
+# =============================================================================
+
+# 播放采样率：pydub 转码后的 PCM 输出格式（Edge-TTS 默认 24kHz）
+TTS_SAMPLE_RATE = 24000
+TTS_CHANNELS = 1
+TTS_SAMPLE_WIDTH = 2  # 16bit
+
+DEFAULT_TTS_VOICE = "zh-CN-YunxiNeural"  # 云希男声（默认，管家感）
+
+
+def edge_tts_stream(
+    text: str,
+    voice: str = DEFAULT_TTS_VOICE,
+) -> "async_iterator":
+    """调用 Edge-TTS，流式返回 PCM 音频块（24kHz/16bit/mono）。
+
+    边下载 MP3 边用 pydub 转 PCM，无需缓存完整文件。
+    用法::
+
+        async for pcm_chunk in edge_tts_stream("你好"):
+            play_pcm(pcm_chunk)
+    """
+    import asyncio
+    import io as _io
+
+    async def _gen():
+        try:
+            import edge_tts
+            from pydub import AudioSegment
+        except ImportError:
+            raise ImportError(
+                "TTS 需要 edge-tts + pydub。安装: pip install edge-tts pydub"
+            )
+
+        communicate = edge_tts.Communicate(text, voice)
+        # edge_tts 的 stream() 是异步生成器，产出 {"type": "audio", "data": mp3_bytes}
+        # try/finally 确保 aiohttp session 关闭，避免 asyncio 泄漏
+        try:
+            async for chunk in communicate.stream():
+                if chunk["type"] != "audio":
+                    continue
+                mp3_bytes = chunk["data"]
+                if not mp3_bytes:
+                    continue
+                # MP3 → PCM（pydub 内部调 ffmpeg）
+                seg = AudioSegment.from_mp3(_io.BytesIO(mp3_bytes))
+                # 统一转 24kHz/16bit/mono PCM
+                seg = seg.set_frame_rate(TTS_SAMPLE_RATE).set_channels(1).set_sample_width(2)
+                yield seg.raw_data
+        finally:
+            # edge-tts Communicate 提供 close() 关闭底层 session
+            try:
+                communicate.close()
+            except Exception:
+                pass
+
+    return _gen()
+
+
+def play_audio_chunks(
+    chunks,
+    on_interrupt=None,
+    sample_rate: int = TTS_SAMPLE_RATE,
+) -> bool:
+    """用 pyaudio 流式播放 PCM 音频块。返回是否被中断。
+
+    每个 chunk 播放前调用 ``on_interrupt()``，若返回 True 则停止播放。
+
+    - ``chunks``：PCM bytes 的迭代器（如 edge_tts_stream 的异步产出，需先收集或适配）
+    - ``on_interrupt``：无参回调，返回 True 表示应停止
+    """
+    if pyaudio is None:
+        raise ImportError("播放音频需要 pyaudio。安装: pip install pyaudio")
+
+    pa = pyaudio.PyAudio()
+    try:
+        stream = pa.open(
+            format=pyaudio.paInt16,
+            channels=TTS_CHANNELS,
+            rate=sample_rate,
+            output=True,
+            frames_per_buffer=1024,
+        )
+        interrupted = False
+        for chunk in chunks:
+            if on_interrupt and on_interrupt():
+                interrupted = True
+                break
+            if not chunk:
+                continue
+            stream.write(chunk)
+        stream.stop_stream()
+        stream.close()
+        return interrupted
+    finally:
+        pa.terminate()
+
+
+def speak_text(
+    text: str,
+    voice: str = DEFAULT_TTS_VOICE,
+    on_interrupt=None,
+) -> bool:
+    """合成并播放一段文本（同步）。返回是否被中断。
+
+    供 CLI 测试和 voice_repl 使用。内部将异步的 edge_tts_stream 收集后同步播放。
+
+    :param text: 要朗读的文本
+    :param voice: Edge-TTS 音色
+    :param on_interrupt: 无参回调，返回 True 停止播放
+    :return: True 表示播放被中断
+    """
+    import asyncio
+
+    def _sync_play():
+        # 同步方式：edge_tts 是异步 API，用 asyncio.run 收集 PCM
+        chunks: list[bytes] = []
+
+        async def _collect():
+            gen = edge_tts_stream(text, voice)
+            async for pcm in gen:
+                chunks.append(pcm)
+
+        try:
+            asyncio.run(_collect())
+        except Exception as exc:
+            import logging
+            logging.warning(f"TTS 合成失败: {exc}")
+            return False
+
+        if not chunks:
+            return False
+        return play_audio_chunks(chunks, on_interrupt=on_interrupt)
+
+    return _sync_play()
+
+
+def tts_test() -> str:
+    """TTS 自测：朗读测试句子。供 ``--voice-tts-test`` CLI 使用。"""
+    test_text = "你好，我是super-code，语音功能测试成功"
+    print(f"🔊 正在朗读: {test_text}")
+    speak_text(test_text)
+    return "✅ TTS 测试完成"

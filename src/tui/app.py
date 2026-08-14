@@ -189,6 +189,8 @@ def main() -> None:
                         help="Wake word detection test (listening loop, Ctrl+C to exit)")
     parser.add_argument("--voice-test", action="store_true",
                         help="Voice STT test: record and print transcription")
+    parser.add_argument("--voice-tts-test", action="store_true",
+                        help="Voice TTS test: speak a test sentence")
     args = parser.parse_args()
 
     try:
@@ -200,6 +202,13 @@ def main() -> None:
     if getattr(args, "voice_enroll", None):
         from support.voice import voice_enroll
         result = voice_enroll(args.voice_enroll)
+        console.print(f"[green]{result}[/green]")
+        return
+
+    # ── TTS 测试模式：朗读测试句 → 退出 ──
+    if getattr(args, "voice_tts_test", False):
+        from support.voice import tts_test
+        result = tts_test()
         console.print(f"[green]{result}[/green]")
         return
 
