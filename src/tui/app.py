@@ -154,6 +154,35 @@ def _trigger_auto_dream_bg(app_config, memory_dir: Path, session_store) -> bool:
     return True
 
 
+def _run_voice_mode(engine, console, app_config, permissions) -> None:
+    """进入语音模式（F2 或 --voice 触发）。
+
+    - 语音模式用 auto_approve 权限（进入时已有 ⚠️ 提醒），退出后恢复原权限
+    - voice_repl 内部用独立 asyncio.run，与 prompt_toolkit 隔离
+    """
+    from tui.voice_repl import voice_repl
+
+    voice_perms = PermissionChecker(auto_approve=True,
+                                    sandbox_manager=permissions._sandbox_manager if hasattr(permissions, "_sandbox_manager") else None)
+    old_perms = engine._permissions
+    engine._permissions = voice_perms
+    try:
+        voice_repl(
+            engine, console,
+            stt_provider=app_config.voice_stt_provider,
+            stt_api_key=app_config.voice_stt_api_key or app_config.api_key or "",
+            base_url=app_config.base_url or "",
+            stt_params=app_config.voice_stt_params,
+            tts_voice=app_config.voice_tts_voice,
+            speaker_verification=app_config.voice_speaker_verification,
+            speaker_threshold=app_config.voice_speaker_threshold,
+            persona_style=app_config.voice_persona_style,
+            voice_model=app_config.voice_model,
+        )
+    finally:
+        engine._permissions = old_perms
+
+
 def main() -> None:
     print("\033]0;super-code\007", end="")  # 设置终端标题
     parser = argparse.ArgumentParser(prog="super-code", description="Minimal AI coding assistant")
@@ -411,6 +440,10 @@ def main() -> None:
     pt_history = FileHistory(str(history_file))
     mode_ref = [False]  # [False]=normal, [True]=plan，传给 bordered_prompt 共享状态
 
+    # ── --voice 启动即进入语音模式（退出后回到文本 REPL）──
+    if args.voice:
+        _run_voice_mode(engine, console, app_config, permissions)
+
     def _toggle_plan_mode() -> None:
         """Shift+Tab 回调：真正切换 plan mode，同时同步 UI 状态。
         不打印任何消息——边框颜色变化已是足够的视觉反馈。"""
@@ -474,6 +507,11 @@ def main() -> None:
             break
 
         last_ctrlc_time = 0.0
+
+        # F2 快捷键 → 进入语音模式
+        if user_input == "__VOICE_MODE__":
+            _run_voice_mode(engine, console, app_config, permissions)
+            continue
 
         # 每次输入后先检查 worker 通知（空回车也能触发）。
         # 同 mode 的待处理命令一次性 drain 喂给 LLM，N 条 <task-notification> 合并成 1 轮 run_query：

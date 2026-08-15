@@ -220,7 +220,7 @@ def bordered_prompt(
             w = 80
         # 左侧：模式标签；右侧：快捷键提示；中间填充
         mode_label = f"{_BAR} [Plan Mode] " if mode_ref[0] else f"{_BAR} [Normal] "
-        right_hints = f" Enter send \u00b7 / commands \u00b7 Ctrl+C exit {_BAR}"
+        right_hints = f" Enter send \u00b7 / commands \u00b7 Ctrl+C exit \u00b7 F2 Voice {_BAR}"
         fill = _BAR * max(0, w - 1 - len(mode_label) - len(right_hints))
         color = 'fg:ansiyellow' if mode_ref[0] else 'fg:ansiwhite'
         return [(color, f'{_BAR}{mode_label}{fill}{right_hints}')]
@@ -282,6 +282,11 @@ def bordered_prompt(
         else:
             mode_ref[0] = not mode_ref[0]
         event.app.invalidate()
+
+    @kb.add('f2')
+    def _(event):
+        """F2 进入语音模式：返回特殊标记，由 app.py 主循环处理。"""
+        event.app.exit(result='__VOICE_MODE__')
 
     @kb.add('c-d')
     def _(event):

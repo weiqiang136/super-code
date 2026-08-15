@@ -253,6 +253,25 @@ class VoiceRecorder:
         self._utterance_pcm = b"".join(chunks)
         self._utterance_done.set()
 
+    def take_recent_audio(self, max_seconds: float = 4.0) -> bytes:
+        """从环形缓冲区取最近 max_seconds 秒音频（VAD 未判结束时兜底用）。
+
+        用于 VAD 边界检测失灵（说话音量低于阈值）时，强制截取缓冲区音频。
+        返回 PCM bytes；缓冲区为空返回 b""。
+        """
+        with self._lock:
+            ring_snapshot = list(self._ring)
+        if not ring_snapshot:
+            return b""
+        max_frames = int(max_seconds * 1000 / FRAME_DURATION_MS)
+        frames = ring_snapshot[-max_frames:]
+        return b"".join(f[0] for f in frames)
+
+    def has_speech_frames(self) -> bool:
+        """环形缓冲区中是否存在 VAD 判为有声的帧（判断用户是否说过话）。"""
+        with self._lock:
+            return any(speech for _, speech in self._ring)
+
 
 # =============================================================================
 # PCM → WAV 辅助函数（内存中转换）
@@ -578,6 +597,32 @@ TTS_SAMPLE_WIDTH = 2  # 16bit
 DEFAULT_TTS_VOICE = "zh-CN-YunxiNeural"  # 云希男声（默认，管家感）
 
 
+def _ensure_ffmpeg_in_path() -> None:
+    """确保 pydub 能调起 ffmpeg：找不到时把常见安装位置加入 PATH。
+
+    winget 安装的 ffmpeg 在 ``%LOCALAPPDATA%\\Microsoft\\WinGet\\Links``，
+    但当前进程的 PATH 可能不含该目录（旧终端 / 直接跑脚本），
+    pydub 调 ffmpeg 会 FileNotFoundError。这里兜底补上。
+    """
+    import os
+    import shutil
+    from pathlib import Path as _Path
+
+    if shutil.which("ffmpeg"):
+        return  # 已在 PATH，无需处理
+
+    candidates = [
+        _Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links",
+        _Path.home() / "scoop" / "shims",
+        _Path("C:/ffmpeg/bin"),
+        _Path("C:/Program Files/ffmpeg/bin"),
+    ]
+    for d in candidates:
+        if (d / "ffmpeg.exe").exists():
+            os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
+            return
+
+
 def edge_tts_stream(
     text: str,
     voice: str = DEFAULT_TTS_VOICE,
@@ -601,10 +646,15 @@ def edge_tts_stream(
             raise ImportError(
                 "TTS 需要 edge-tts + pydub。安装: pip install edge-tts pydub"
             )
+        _ensure_ffmpeg_in_path()
 
         communicate = edge_tts.Communicate(text, voice)
         # edge_tts 的 stream() 是异步生成器，产出 {"type": "audio", "data": mp3_bytes}
+        # ⚠️ 不能逐 chunk 解码：MP3 是分块流，单个 chunk 可能不完整（帧被切两半），
+        # pydub 逐块解码会报 "Failed to find two consecutive MPEG audio frames"。
+        # 正确做法：累积全部 MP3 字节，一次性解码成 PCM。
         # try/finally 确保 aiohttp session 关闭，避免 asyncio 泄漏
+        mp3_buffer = bytearray()
         try:
             async for chunk in communicate.stream():
                 if chunk["type"] != "audio":
@@ -612,8 +662,10 @@ def edge_tts_stream(
                 mp3_bytes = chunk["data"]
                 if not mp3_bytes:
                     continue
-                # MP3 → PCM（pydub 内部调 ffmpeg）
-                seg = AudioSegment.from_mp3(_io.BytesIO(mp3_bytes))
+                mp3_buffer.extend(mp3_bytes)
+            if mp3_buffer:
+                # 全部 MP3 收集完，一次性解码（pydub 内部调 ffmpeg）
+                seg = AudioSegment.from_mp3(_io.BytesIO(bytes(mp3_buffer)))
                 # 统一转 24kHz/16bit/mono PCM
                 seg = seg.set_frame_rate(TTS_SAMPLE_RATE).set_channels(1).set_sample_width(2)
                 yield seg.raw_data
@@ -688,8 +740,15 @@ def speak_text(
 
         async def _collect():
             gen = edge_tts_stream(text, voice)
-            async for pcm in gen:
-                chunks.append(pcm)
+            try:
+                async for pcm in gen:
+                    chunks.append(pcm)
+            finally:
+                # 显式关闭异步生成器，避免 "Task was destroyed but it is pending" 泄漏
+                try:
+                    await gen.aclose()
+                except Exception:
+                    pass
 
         try:
             asyncio.run(_collect())
