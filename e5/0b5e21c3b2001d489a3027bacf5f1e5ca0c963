@@ -1,0 +1,50 @@
+src/support/voice.py
+  s_6d8c91b8ff3d20::t_32352fc546835b 272
+  s_6d8c91b8ff3d20::t_ff61ab23ff34e2 773-776,780-786
+  s_6d8c91b8ff3d20::t_2753f347adc3db 86,88
+  s_6d8c91b8ff3d20::t_9ec4d0e9e4c32e 167,171-172,178-190
+  s_6d8c91b8ff3d20::t_f6616ec0482aea 267-268,271
+  s_6d8c91b8ff3d20::t_52728932c65cba 85,87
+  s_6d8c91b8ff3d20::t_ded5ffdc45671d 209-221
+  s_6d8c91b8ff3d20::t_ba914878e6253b 173-174,176-177
+  s_6d8c91b8ff3d20::t_29341e60c5449c 163-165,168-170,208
+  s_6d8c91b8ff3d20::t_199a10eafdcb30 166,175,191-207
+src/tui/voice_repl.py
+  s_6d8c91b8ff3d20::t_94f49ac7a14b14 190-192
+  s_6d8c91b8ff3d20::t_8869008c05768f 358
+  s_6d8c91b8ff3d20::t_90ef3477df49ec 378
+  s_6d8c91b8ff3d20::t_d6c5cec6631713 390-391,393,398-399,401,409-410,449-452,457,574
+  s_6d8c91b8ff3d20::t_22697e722f1862 494-495,498-503
+  s_6d8c91b8ff3d20::t_2b0388757567d4 359-363,369-371,373-376
+  s_6d8c91b8ff3d20::t_42f16f81e0f1ef 493,496-497,504,506,525-533,560-563,570-573,575-577,588-589
+  s_6d8c91b8ff3d20::t_e53b12d6e8b414 355,364-366,368,379-383
+  s_6d8c91b8ff3d20::t_f3e620a3b0a0c8 564-569
+  s_6d8c91b8ff3d20::t_8cb2fcd821af3a 505
+  s_6d8c91b8ff3d20::t_b4644b9ee8f2fb 246,250
+  s_6d8c91b8ff3d20::t_d0a79a1358f4e4 411,417-419,427,429-432,446-447,464
+  s_6d8c91b8ff3d20::t_8fccd993f49d38 412,420-426,428,433-445
+  s_6d8c91b8ff3d20::t_8fd6dc3fa90ab6 458-463,465-468
+  s_6d8c91b8ff3d20::t_a32f348d7cb8f1 348-353,372,377
+  s_6d8c91b8ff3d20::t_73014c659c6d4d 354,356-357,367
+  s_6d8c91b8ff3d20::t_88b700d6931f5f 251,257-262
+  s_6d8c91b8ff3d20::t_4136cce8f96873 516-519
+  s_6d8c91b8ff3d20::t_811f89c90c0342 392,400,455-456
+  s_6d8c91b8ff3d20::t_eb87ac697a61fa 471-474,477-483
+  s_6d8c91b8ff3d20::t_cf31633bcdbcc5 38-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e50b5e21c3b2001d489a3027bacf5f1e5ca0c963",
+  "prompts": {},
+  "sessions": {
+    "s_6d8c91b8ff3d20": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0d8e4aa163944ce380ccb92ab74de414",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
