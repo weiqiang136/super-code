@@ -76,12 +76,12 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     logo = Text("\n".join(_LOGO_LINES), style="italic bold bright_magenta")
 
     info = Text()
-    info.append("Model       : ", style="dim"); info.append(f"{app_config.model}\n", style="white")
-    info.append("Context     : ", style="dim"); info.append(f"{_fmt_tokens(get_context_window(app_config.model))}\n", style="white")
-    info.append("Max Output  : ", style="dim"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="white")
-    info.append("Session     : ", style="dim"); info.append(f"{session_id[:8]}\n", style="white")
-    info.append("CWD         : ", style="dim"); info.append(f"{cwd}\n", style="white")
-    info.append("Version     : ", style="dim"); info.append("v3.2.0", style="bold bright_magenta")
+    info.append("Model       : ", style="cyan"); info.append(f"{app_config.model}\n", style="bright_cyan")
+    info.append("Context     : ", style="cyan"); info.append(f"{_fmt_tokens(get_context_window(app_config.model))}\n", style="bright_green")
+    info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
+    info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
+    info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
+    info.append("Version     : ", style="cyan"); info.append("v3.2.0", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
