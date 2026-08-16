@@ -33,6 +33,12 @@ MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "glm-4.7-air": 200_000,  # 轻量版但窗口相同
     "glm-4.7-flash": 200_000,  # 极速版但窗口相同
 
+    # GLM 5 系列（2026 官方文档实测：5/5.1/5-Turbo=200K，5.2/5.3=1M）
+    # 前缀匹配按 key 长度倒序：glm-5.3 / glm-5.2 先于 glm-5 命中，不会被误降级
+    "glm-5": 200_000,       # 前缀覆盖 glm-5.1 / glm-5-turbo（官方均 200K，输出 128K）
+    "glm-5.2": 1_000_000,   # 1M 旗舰
+    "glm-5.3": 1_000_000,   # 1M 旗舰（API 即将上线）
+
     # Claude (Anthropic) - 4.6 及以上版本支持 1M (beta)
     "claude-opus-4-6": 1_000_000,
     "claude-sonnet-4-6": 1_000_000,

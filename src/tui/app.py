@@ -46,31 +46,42 @@ console = Console()
 _DOUBLE_PRESS_TIMEOUT = 0.8
 
 _LOGO_LINES = [
-    r" ___                         ___         _     ",
-    r"/ __|_  _ _ __  ___ _ _     / __|___  __| |___ ",
-    r"\__ \ || | |_ \/ -_) |_|   | (__/ _ \/ _  / -_)",
-    r"|___/\_,_| .__/\___|_|      \___\___/\__,_\___|",
-    r"         |_|  Code                              ",
+    r"███████╗██╗   ██╗██████╗ ███████╗██████╗",
+    r"██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗",
+    r"███████╗██║   ██║██████╔╝█████╗  ██████╔╝",
+    r"╚════██║██║   ██║██╔═══╝ ██╔══╝  ██╔══██╗",
+    r"███████║╚██████╔╝██║     ███████╗██║  ██║",
+    r"╚══════╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝",
 ]
 
 
-def _print_banner(app_config) -> None:
-    """打印启动横幅：Panel 包裹，左侧紫色 ASCII logo，右侧模型信息。"""
-    from rich.panel import Panel
+def _fmt_tokens(n: int) -> str:
+    """token 数格式化：≥1M 显示 M（整数省略小数位），否则显示 K。"""
+    if n >= 1_000_000:
+        m = n / 1_000_000
+        return f"{m:.0f}M" if m == int(m) else f"{m:.1f}M"
+    return f"{round(n / 1024)}K"
+
+
+def _print_banner(app_config, cwd: str, session_id: str) -> None:
+    """打印启动横幅：Panel 包裹，左侧紫色 ASCII logo，右侧模型信息。
+
+    Context（上下文窗口）按模型动态映射（features/compact.get_context_window），
+    与自动压缩触发阈值同源，保证展示和实际行为一致。
+    """
     from rich.table import Table
     from rich.text import Text
+    from features.compact import get_context_window
 
-    logo = Text()
-    for line in _LOGO_LINES:
-        logo.append(line + "\n", style="bold bright_magenta")
+    logo = Text("\n".join(_LOGO_LINES), style="italic bold bright_magenta")
 
-    info = Text("\n")
-    info.append("Provider : ", style="dim"); info.append(f"{app_config.provider}\n", style="white")
-    info.append("Model    : ", style="dim"); info.append(f"{app_config.model}\n", style="white")
-    _t = app_config.max_tokens
-    _fmt = f"{_t / 1_000_000:.1f}M" if _t >= 1_000_000 else f"{round(_t / 1024)}K"
-    info.append("Tokens   : ", style="dim"); info.append(f"{_fmt}\n", style="white")
-    info.append("Version  : ", style="dim"); info.append("v0.1.0\n", style="bold bright_magenta")
+    info = Text()
+    info.append("Model       : ", style="dim"); info.append(f"{app_config.model}\n", style="white")
+    info.append("Context     : ", style="dim"); info.append(f"{_fmt_tokens(get_context_window(app_config.model))}\n", style="white")
+    info.append("Max Output  : ", style="dim"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="white")
+    info.append("Session     : ", style="dim"); info.append(f"{session_id[:8]}\n", style="white")
+    info.append("CWD         : ", style="dim"); info.append(f"{cwd}\n", style="white")
+    info.append("Version     : ", style="dim"); info.append("v3.2.0", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -78,8 +89,7 @@ def _print_banner(app_config) -> None:
     table.add_row(logo, info)
 
     console.print()
-    console.print(Panel(table, border_style="bright_magenta", padding=(0, 1)))
-    console.print()
+    console.print(table)
 
 
 def _run_dream(engine, memory_dir, permissions, quiet: bool = True,
@@ -359,7 +369,7 @@ def main() -> None:
     except Exception:
         pass
 
-    _print_banner(app_config)
+    _print_banner(app_config, cwd, session_store.session_id)
 
     # 启动 git-ai daemon（如果已安装）：后台线程，不阻塞 UI 显示。
     # checkpoint 数据只存在 daemon 内存中，电脑重启后 daemon 不在运行，
