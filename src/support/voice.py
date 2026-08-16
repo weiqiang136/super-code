@@ -82,6 +82,10 @@ class VoiceRecorder:
         # 能量阈值（RMS）：低于该值的帧强制判为静音，过滤环境底噪。
         # 0 = 不启用能量滤波（纯 VAD）。默认 2000：底噪 RMS~1200 被滤除，语音 RMS 通常 >3000。
         self._energy_threshold = energy_threshold
+        # TTS 播放时的能量阈值（回声防御）：播放期间调高，滤掉扬声器回声。
+        # 初始与普通阈值相同，_set_tts_playing(True) 时 ×2.5。
+        self._tts_playing = False
+        self._tts_stopped_at: float | None = None  # 上次 TTS 停止时刻（回声保护期）
         self._pa: pyaudio.PyAudio | None = None
         self._stream: pyaudio.Stream | None = None
         self._thread: threading.Thread | None = None
@@ -156,6 +160,65 @@ class VoiceRecorder:
         with self._lock:
             return self._speaking
 
+    def set_tts_playing(self, playing: bool) -> None:
+        """标记 TTS 是否正在播放（回声防御）。
+
+        TTS 播放期间：能量阈值 ×2.5，扬声器回声大部分被滤；
+        停止时记录时刻，供 is_echo_zone() 判断"回声保护期"。
+        """
+        with self._lock:
+            self._tts_playing = playing
+            if not playing:
+                self._tts_stopped_at = time.time()
+
+    def is_tts_playing(self) -> bool:
+        """TTS 是否正在播放（供打断 watchdog 查询）。"""
+        with self._lock:
+            return self._tts_playing
+
+    def is_echo_zone(self, protection_seconds: float = 0.5) -> bool:
+        """是否处于"回声区"：TTS 播放中，或刚停止 protection_seconds 内。
+
+        TTS 停止后扬声器仍有物理余音（~0.3s），watchdog 在此窗口内
+        检测到高 RMS 不应直接打断（可能是余音），只标记待验证。
+        """
+        with self._lock:
+            if self._tts_playing:
+                return True
+            if self._tts_stopped_at is not None:
+                return time.time() - self._tts_stopped_at < protection_seconds
+            return False
+
+    def recent_rms(self, window_frames: int = 10) -> float:
+        """最近 window_frames 帧（~300ms）的 RMS 峰值。
+
+        用于暂停验证：TTS 暂停后回声消失 → RMS 降到环境水平（<5000）；
+        用户说话 → RMS 峰值显著高于环境（>5000）。
+        """
+        with self._lock:
+            if not self._ring:
+                return 0.0
+            frames = list(self._ring)[-window_frames:]
+        peak = 0.0
+        for raw, _ in frames:
+            r = _frame_rms(raw)
+            if r > peak:
+                peak = r
+        return peak
+
+    def has_recent_speech(self, window_frames: int = 10) -> bool:
+        """最近 window_frames 帧（~300ms）内是否有 VAD 判为有声的帧。
+
+        比 is_speaking() 更灵敏：is_speaking 是"一段语音的持续状态"（需 5 帧
+        才进入、10 帧无声才退出），在打断场景（用户短喊"停止"）可能采样不到。
+        本方法直接查环形缓冲区，任何一帧有声即返回 True。
+        """
+        with self._lock:
+            if not self._ring:
+                return False
+            frames = list(self._ring)[-window_frames:]
+            return any(speech for _, speech in frames)
+
     def get_audio(self) -> bytes | None:
         """返回最近一条语句的原始 PCM 音频，无则返回 None。"""
         return self._utterance_pcm
@@ -201,9 +264,12 @@ class VoiceRecorder:
 
             is_speech = self._vad.is_speech(raw, SAMPLE_RATE)
             # 能量滤波：帧 RMS 低于阈值 → 强制判为静音（滤除环境底噪/电流声）
+            # TTS 播放期间阈值 ×2.5（≈5000）：滤掉扬声器回声（P90~900），
+            # 用户近距离喊话（P90~4500，峰值~11000）仍能通过
             if self._energy_threshold > 0 and is_speech:
                 rms = _frame_rms(raw)
-                if rms < self._energy_threshold:
+                effective = self._energy_threshold * (2.5 if self._tts_playing else 1)
+                if rms < effective:
                     is_speech = False
 
             with self._lock:
@@ -704,13 +770,20 @@ def play_audio_chunks(
             frames_per_buffer=1024,
         )
         interrupted = False
+        # 每 100ms 切成一个小块播放：chunk 之间检查 on_interrupt。
+        # ⚠️ 不能整块 write——edge_tts_stream 一次性产出整段 PCM，
+        # 若整块写，打断检查只在播放前/后触发，播放中无法中断。
+        chunk_bytes = sample_rate * TTS_SAMPLE_WIDTH * TTS_CHANNELS // 10  # 100ms
         for chunk in chunks:
-            if on_interrupt and on_interrupt():
-                interrupted = True
-                break
             if not chunk:
                 continue
-            stream.write(chunk)
+            for offset in range(0, len(chunk), chunk_bytes):
+                if on_interrupt and on_interrupt():
+                    interrupted = True
+                    break
+                stream.write(chunk[offset:offset + chunk_bytes])
+            if interrupted:
+                break
         stream.stop_stream()
         stream.close()
         return interrupted

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import queue
+import threading
 import time
 from pathlib import Path
 
@@ -34,6 +35,10 @@ LISTEN_TIMEOUT = 4.0
 SILENCE_SETTLE = 1.2
 # 单次聆听总上限（秒）：防环境底噪导致无限等
 MAX_LISTEN = 8.0
+# 打断验证的 RMS 阈值：暂停播放后测麦克风 RMS 峰值，
+# 超过该值判为人声（打断），低于判为回声/环境噪音（恢复）。
+# 依据实测：环境峰值 ~3900 < 5000 < 人声峰值 ~11000
+INTERRUPT_RMS_THRESHOLD = 5000.0
 
 
 # =============================================================================
@@ -182,6 +187,9 @@ async def _voice_repl_async(
     if speaker_verification:
         vpm = VoiceprintManager(voiceprint_dir or (Path.home() / ".config" / "super-code"))
 
+    # ── 全局停止标志：退出时通知 _run_engine_turn 停止 engine/TTS ──
+    stop_event = threading.Event()
+
     # ── 人格注入：在现有 system 提示之后插入语音人格 ──
     persona_injected = False
     persona = build_voice_persona_prompt(persona_style)
@@ -235,16 +243,23 @@ async def _voice_repl_async(
                     continue
                 console.print(f"[dim]🔒 声纹验证通过 ({name}, {score:.2f})[/dim]")
 
-            # ── 3. engine.submit + 流式 TTS ──
+            # ── 3. engine.submit + 流式 TTS（带深度打断 watchdog）──
             await _run_engine_turn(
                 engine, text, console,
                 tts_voice=tts_voice,
+                recorder=recorder,
+                stop_event=stop_event,
             )
 
             # ── 4. 短暂停顿后进入下一轮（P4 实现完整静默超时状态机）──
             await asyncio.sleep(0.5)
     finally:
-        # ── 退出清理：移除人格提示、恢复模型 ──
+        # ── 退出清理：先停 engine（可能有正在跑的轮次）──
+        stop_event.set()
+        try:
+            engine.abort()
+        except Exception:
+            pass
         if persona_injected:
             try:
                 for i, m in enumerate(engine._messages):
@@ -330,17 +345,60 @@ async def _listen_and_transcribe(
         return None
 
 
+async def _vad_watchdog(
+    recorder,
+    interrupt_flag: threading.Event,
+    suspicious: threading.Event,
+    check_interval: float = 0.1,
+) -> None:
+    """深度打断 watchdog：后台持续检测麦克风 RMS，用户说话 → 设置打断标志。
+
+    用 ``recorder.recent_rms() > INTERRUPT_RMS_THRESHOLD``（绝对阈值）判断，
+    不用 VAD 判定——环境噪音（峰值 ~3900）会被 VAD 误判为有声，但 RMS 低于阈值。
+
+    回声防御（暂停验证）：
+    - 回声区（TTS 播放中/刚停 0.5s 内，可能有扬声器余音）→ 只置 ``suspicious``，
+      由 TTS 播放线程暂停验证（回声随暂停消失 → 恢复；人声持续 → 打断）
+    - 非播放期 → 要求 0.6s 持续高 RMS 才打断（回声残余 <0.3s，人声通常 >0.6s；
+      随机短声音 <0.6s 不误触发）
+    """
+    consecutive = 0
+    while True:
+        if recorder.recent_rms() > INTERRUPT_RMS_THRESHOLD:
+            consecutive += 1
+            if recorder.is_echo_zone():
+                # 播放中或刚停：可能扬声器余音 → 交播放线程暂停验证
+                if consecutive >= 3:  # 0.3s
+                    suspicious.set()
+                    consecutive = 0
+            else:
+                # 非播放期：要求 0.6s 持续（滤掉余音与随机短声音）
+                if consecutive >= 6:
+                    interrupt_flag.set()
+                    return
+        else:
+            consecutive = 0
+        await asyncio.sleep(check_interval)
+
+
 async def _run_engine_turn(
     engine: Engine,
     user_input: str,
     console,
     *,
     tts_voice: str,
-) -> None:
+    recorder=None,
+    interrupt_threshold: float = 0.3,
+    stop_event: threading.Event | None = None,
+) -> bool:
     """执行一轮 engine.submit + 流式 TTS。
 
     engine.submit 是同步生成器 → 线程池执行；事件经 queue 逐条传回协程，
     文本按句子边界缓冲后立即送 TTS（边生成边朗读）。
+
+    recorder 非空时启用深度打断：VAD 检测到说话 → 停 TTS + engine.abort()。
+    stop_event 非空时：语音模式退出 → 立即停止 engine 子线程（不再生成/TTS）。
+    返回 True 表示被用户打断。
     """
     from support.voice import speak_text
 
@@ -348,20 +406,81 @@ async def _run_engine_turn(
     sbuf = SentenceBuffer()
     had_tools = False
     spinner = None
+    interrupted = False
+    interrupt_flag = threading.Event()
+    suspicious = threading.Event()  # 播放中检测到可疑声音（待验证）
+    _last_verify_time = 0.0  # 上次暂停验证时刻（节流用）
 
     # TTS 播放串行锁：填充语/正文句子不能同时占扬声器（pyaudio 单流冲突）
     tts_lock = asyncio.Lock()
 
+    def _interrupt_check() -> bool:
+        """TTS 播放线程的 on_interrupt 回调（每 100ms 调用一次）。
+
+        暂停验证（外放鲁棒）：suspicious 被设置 → 暂停播放 0.5s，
+        比较暂停前后 RMS：
+        - 回声：暂停前（播放中）RMS 高 → 暂停后（扬声器停）显著下降 → 恢复播放
+        - 人声：暂停前 RMS 高（播放+人声）→ 暂停后仍高（人声不依赖扬声器）→ 打断
+        - 环境噪音：前后都不高 → 恢复
+
+        节流：1s 内最多验证一次（外放回声持续触发时避免 TTS 卡顿）。
+        """
+        nonlocal _last_verify_time
+        if interrupt_flag.is_set() or (stop_event and stop_event.is_set()):
+            return True
+        if suspicious.is_set():
+            suspicious.clear()
+            now = time.time()
+            if now - _last_verify_time < 1.0:
+                return False  # 节流：1s 内不重复验证
+            _last_verify_time = now
+            if recorder is not None:
+                before = recorder.recent_rms()  # 暂停前（播放中，含回声）
+                time.sleep(0.5)                 # 暂停播放，回声衰减
+                after = recorder.recent_rms()   # 暂停后
+                # 暂停后仍高且无明显下降 → 人声（不依赖扬声器）→ 打断
+                if after > INTERRUPT_RMS_THRESHOLD and after > before * 0.7:
+                    interrupt_flag.set()
+                    return True
+            # 否则：回声（暂停后显著下降）或环境噪音 → 恢复播放
+        return False
+
     async def _speak(text: str) -> None:
-        """带锁的 TTS 播放（放线程池执行，串行不重叠）。"""
+        """带锁的 TTS 播放（放线程池执行，串行不重叠）。
+
+        打断时（interrupt_flag 被设置）→ on_interrupt 回调返回 True → 立即停播。
+        """
         if text and text.strip():
             async with tts_lock:
-                await asyncio.to_thread(speak_text, text, tts_voice)
+                # 已被打断或语音模式退出 → 不再播放新句子
+                if interrupt_flag.is_set() or (stop_event and stop_event.is_set()):
+                    return
+                # TTS 播放期间标记回声防御（提高 VAD 能量阈值滤回声）
+                if recorder is not None:
+                    recorder.set_tts_playing(True)
+                try:
+                    await asyncio.to_thread(
+                        speak_text, text, tts_voice,
+                        on_interrupt=_interrupt_check,
+                    )
+                finally:
+                    if recorder is not None:
+                        recorder.set_tts_playing(False)
 
     def _run_engine():
-        """子线程：消费 engine.submit 生成器，事件逐个入队。"""
+        """子线程：消费 engine.submit 生成器，事件逐个入队。
+
+        stop_event 被设置（语音模式退出）→ 立即 abort engine 并结束。
+        """
         try:
             for event in engine.submit(user_input):
+                # 语音模式退出 → 停止
+                if stop_event and stop_event.is_set():
+                    try:
+                        engine.abort()
+                    except Exception:
+                        pass
+                    break
                 event_q.put(event)
         except Exception as exc:
             event_q.put(("error", str(exc)))
@@ -370,6 +489,20 @@ async def _run_engine_turn(
 
     from tui.rendering import SpinnerManager
     spinner = SpinnerManager(console)
+
+    # ── 深度打断 watchdog ──
+    # recorder 非空时：先重启采集（_listen_and_transcribe 结束时已 cancel），
+    # 后台持续检测 VAD，用户说话 → interrupt_flag.set()。
+    # 该 flag 同时作用于：TTS on_interrupt 回调（停播）、事件循环（engine.abort()）。
+    vad_task = None
+    if recorder is not None:
+        try:
+            recorder.start()  # 重新启动麦克风采集（打断监听用）
+        except Exception as exc:
+            logger.warning(f"打断监听启动失败: {exc}")
+            recorder = None  # 降级：无法打断，但对话继续
+    if recorder is not None:
+        vad_task = asyncio.create_task(_vad_watchdog(recorder, interrupt_flag, suspicious))
 
     # 启动子线程跑 engine（不阻塞事件循环）
     loop = asyncio.get_event_loop()
@@ -380,11 +513,24 @@ async def _run_engine_turn(
     filler_task = asyncio.create_task(_speak("好的"))
     try:
         while True:
+            # 语音模式退出 → 立即停止
+            if stop_event and stop_event.is_set():
+                interrupted = True
+                break
             # 阻塞取事件（放线程池，避免卡事件循环）
             event = await asyncio.to_thread(event_q.get)
             if event is None:
                 break
             etype = event[0]
+            # ── 深度打断：用户说话 → abort engine + 停 TTS ──
+            if interrupt_flag.is_set():
+                interrupted = True
+                console.print("\n[yellow]⏹ 已打断[/yellow]")
+                try:
+                    engine.abort()
+                except Exception:
+                    pass
+                break
             if etype == "text":
                 text_chunk = event[1]
                 for sentence in sbuf.feed(text_chunk):
@@ -411,7 +557,24 @@ async def _run_engine_turn(
                 spinner.start("Preparing tool call…")
     finally:
         spinner.stop()
-        await engine_thread  # 确保子线程结束（哨兵已消费则已结束）
+        # 打断后：engine.submit 生成器还在线程里跑（可能阻塞在流读取），
+        # abort() 已关 stream → 生成器会抛 AbortedError 结束。等它退出。
+        if vad_task:
+            vad_task.cancel()
+        # 本轮结束：停止打断监听采集（下一轮 _listen_and_transcribe 会重新 start）
+        if recorder is not None:
+            try:
+                recorder.cancel()
+            except Exception:
+                pass
+        try:
+            await engine_thread
+        except Exception:
+            pass
+
+    # 若被打断，跳过 flush 和完成通知
+    if interrupted:
+        return True
 
     # flush 剩余缓冲
     rest = sbuf.flush()
@@ -422,3 +585,5 @@ async def _run_engine_turn(
     if had_tools:
         console.print("[dim]✅ 任务完成[/dim]")
         await _speak("完成了")
+
+    return False
