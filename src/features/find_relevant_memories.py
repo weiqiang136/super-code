@@ -1,12 +1,23 @@
 """Step 6 — 按相关性精选记忆并注入到当轮 user message。
 
-    用户每次提问 → 扫记忆目录 → side-query 让小模型从 manifest 里挑最多 5 条 →
-    把这些记忆的**全文**（每条前面拼 Step 4 freshness warning）打包成一个
-    <system-reminder> 块，附在 user message 前面。
+    用户每次提问 → 扫记忆目录 → side-query 让小模型从 manifest 里挑最多 3 条 →
+    把这些记忆的**摘要**（filename + frontmatter description，每条前面拼
+    Step 4 freshness warning）打包成一个 <system-reminder> 块，附在 user message
+    前面。需要细节时由模型用 Read 工具打开记忆文件，避免把全文注入历史重复计费。
 
 为什么走 side-query 而不是简单的关键字匹配：
     关键字（如 "auth" 命中 feedback-handler.md）会过度触发；模型挑选有上下文判断，
     准确率高得多。max_tokens=256 + JSON schema 让 side-query 成本可忽略。
+
+为什么注入摘要而不是全文：
+    全文注入（每条至多 8000 字符）会留在对话历史里每一轮重复计费，且误选的
+    "垃圾记忆"污染面大。摘要每条仅 ~30-50 token，注入块同时给出记忆目录路径，
+    模型需要细节时用 Read 按需读取。
+
+为什么加会话级节流：
+    side-query 的价值在于"话题开始时给一次方向"；同一会话 5 分钟内反复挑选
+    边际收益低。缓存未命中 + 节流窗口内 → 跳过 side-query（不写缓存，窗口过后
+    同话题仍可重新查询）。
 
 最小改动原则：
     - 不修改 engine / context / run_query / permissions
@@ -16,6 +27,7 @@
 from __future__ import annotations
 
 import json
+import time
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -29,13 +41,15 @@ from features.memory_scan import (
 )
 
 # side-query 至多挑选这么多记忆。
-MAX_SELECTED = 5
+MAX_SELECTED = 3
 
 # 单次 side-query 的 token 上限。返回 JSON 很短（几个 filename），256 已足够冗余。
 SELECT_MAX_TOKENS = 256
 
-# 单个被选中记忆的正文截断。防止某个超大 topic 文件把当轮 prompt 撑爆。
-MAX_MEMORY_BODY_CHARS = 8_000
+# 会话级节流：距上次 side-query 不足该秒数时直接跳过（不调 LLM、不写缓存）。
+# side-query 的价值在"话题开始时给一次方向"，5 分钟内连续提问围绕同一工作
+# 上下文，重复挑选边际收益低；话题漂移也等窗口过后再查。
+THROTTLE_SECONDS = 300
 
 # 触发 side-query 的最低记忆数：少于这个数量直接全注入（不调用 LLM 反而更便宜）。
 MIN_MEMORIES_FOR_SIDE_QUERY = 2
@@ -64,6 +78,23 @@ _lookup_cache: dict[str, Any] = {
     "query": None,        # str | None：上次查询的 user_input
     "prefix": "",         # str：上次产出的 prefix 文本
 }
+
+# 会话级节流状态：上次实际发起 side-query（LLM 调用）的单调时钟时间戳。
+# None = 本会话尚未查询过。用 time.monotonic 而非 time.time：不受系统时钟调整影响。
+_last_side_query_at: float | None = None
+
+
+def _throttle_active() -> bool:
+    """距上次 side-query 是否仍在节流窗口内。"""
+    if _last_side_query_at is None:
+        return False
+    return time.monotonic() - _last_side_query_at < THROTTLE_SECONDS
+
+
+def _mark_side_query() -> None:
+    """记录一次 side-query 发起时刻（无论成败，只要发了 LLM 调用就算）。"""
+    global _last_side_query_at
+    _last_side_query_at = time.monotonic()
 
 
 
@@ -177,6 +208,8 @@ def find_relevant_memories(query: str, memory_dir: Path,
     if len(memories) < MIN_MEMORIES_FOR_SIDE_QUERY:
         return memories
 
+    # 记录 side-query 发起时刻：只要发了 LLM 调用就计入节流（成败与否）
+    _mark_side_query()
     selected_names = _select_with_side_query(query, memories, llm_client, model)
     if not selected_names:
         return []
@@ -188,25 +221,14 @@ def find_relevant_memories(query: str, memory_dir: Path,
 # 注入文本构造
 # ---------------------------------------------------------------------------
 
-def _read_memory_body(header: MemoryHeader) -> str:
-    """读取记忆全文。失败返回空串（调用方据此把整条 skip 掉）。"""
-    try:
-        text = header.file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
-    if len(text) > MAX_MEMORY_BODY_CHARS:
-        text = text[:MAX_MEMORY_BODY_CHARS] + "\n…[truncated]"
-    return text
-
-
 def build_relevant_memories_prefix(query: str, memory_dir: Path,
                                    llm_client: Any, model: str) -> str:
     """供 tui/app.py 调用的总入口。
 
     返回值规范：
-        - 拿不到相关记忆 / 失败 / 短输入 → 空字符串（调用方直接 `prefix + user_input`，
-          空串自然降级为 user_input）
-        - 有相关记忆 → 一段 <system-reminder>...</system-reminder> 包裹的文本，
+        - 拿不到相关记忆 / 失败 / 短输入 / 节流窗口内 → 空字符串（调用方直接
+          `prefix + user_input`，空串自然降级为 user_input）
+        - 有相关记忆 → 一段 <system-reminder>...</system-reminder> 包裹的摘要文本，
           末尾自带 "\n\n" 分隔符，便于直接拼到 user_input 前面
 
     性能优化（不影响功能正确性）：
@@ -214,6 +236,9 @@ def build_relevant_memories_prefix(query: str, memory_dir: Path,
         2. _cache_hit：连续提问同话题命中缓存，零 LLM 调用
         3. 命中缓存时 freshness 也是缓存的旧值——可接受，新鲜度对几秒/几分钟内的
            话题切换没有实际差异
+        4. _throttle_active：缓存未命中 + 距上次 side-query 不足 THROTTLE_SECONDS
+           → 直接返回空串。**刻意不写缓存**：避免把节流导致的空结果永久缓存，
+           窗口过后同话题提问仍能重新查询。
     """
     if _should_skip_lookup(query):
         return ""
@@ -222,6 +247,9 @@ def build_relevant_memories_prefix(query: str, memory_dir: Path,
     cached = _cache_hit(query, memory_dir_key)
     if cached is not None:
         return cached
+
+    if _throttle_active():
+        return ""
 
     prefix = _build_prefix_uncached(query, memory_dir, llm_client, model)
     _cache_store(query, memory_dir_key, prefix)
@@ -241,23 +269,25 @@ def _build_prefix_uncached(query: str, memory_dir: Path,
         # MEMORY.md 不应出现（scan_memory_files 已过滤），这里再保险一道
         if h.filename == ENTRYPOINT_NAME:
             continue
-        body = _read_memory_body(h)
-        if not body:
-            continue
         # Step 4：≥2 天的记忆带 freshness 警告；新鲜的不带（freshness_text 返回 "")
         freshness = memory_freshness_text(h.mtime_ms)
         freshness_block = f"<system-reminder>{freshness}</system-reminder>\n" if freshness else ""
-        parts.append(f"## {h.filename}\n{freshness_block}{body.strip()}")
+        # 注入摘要而非全文：description 来自 frontmatter（scan 时已解析），
+        # 缺描述时降级占位，细节由模型按需 Read 记忆文件
+        desc = h.description or "(no description — read the file for details)"
+        parts.append(f"## {h.filename}\n{freshness_block}{desc}")
 
     if not parts:
         return ""
 
     body = "\n\n".join(parts)
     return (
-        f"<system-reminder>\n"
-        f"Relevant memories selected for this turn ({len(parts)}):\n\n"
+        "<system-reminder>\n"
+        f"Relevant memories selected for this turn ({len(parts)}):\n"
+        "Summaries only — use the Read tool to open a memory file if you need details.\n"
+        f"Memory directory: {memory_dir}\n\n"
         f"{body}\n"
-        f"</system-reminder>\n\n"
+        "</system-reminder>\n\n"
     )
 
 
@@ -318,11 +348,16 @@ def will_need_side_query(query: str, memory_dir: Path) -> bool:
     不复用内部函数的判断结果——刻意独立实现，避免未来任一端的逻辑变更造成
     调用层与实现层的隐性耦合。性能：仅做 scan_memory_files（内存文件数通常
     ≤100，~ms 级），无网络 IO。
+
+    与 build_relevant_memories_prefix 的判定顺序保持一致：
+    skip_lookup → cache_hit → throttle → scan。
     """
     if _should_skip_lookup(query):
         return False
     memory_dir_key = str(memory_dir)
     if _cache_hit(query, memory_dir_key) is not None:
+        return False
+    if _throttle_active():
         return False
     try:
         memories = scan_memory_files(memory_dir)
@@ -332,9 +367,10 @@ def will_need_side_query(query: str, memory_dir: Path) -> bool:
 
 
 def reset_relevant_memories_cache() -> None:
-    """供测试 / `/clear` 命令调用，清空缓存。生产场景换记忆目录会自动失效，
-    一般不需要手动 reset。"""
+    """供测试 / `/clear` 命令调用，清空缓存与节流状态。生产场景换记忆目录会自动
+    失效，一般不需要手动 reset。"""
+    global _last_side_query_at
     _lookup_cache["memory_dir"] = None
     _lookup_cache["query"] = None
     _lookup_cache["prefix"] = ""
-
+    _last_side_query_at = None

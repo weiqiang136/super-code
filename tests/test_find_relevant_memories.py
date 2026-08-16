@@ -5,8 +5,8 @@ test_find_relevant_memories.py — Step 6 相关性精选注入。
 - side-query 的 JSON 解析与白名单过滤
 - 失败时静默返回空串 / 空列表
 - 记忆数过少时跳过 side-query
-- prefix 文本格式（含 freshness 警告拼接）
-- read 失败的 topic 自动跳过
+- prefix 文本格式（摘要注入 + freshness 警告拼接）
+- 会话级节流（重复查询窗口内跳过 LLM 调用）
 
 每个测试都构造一个独立 tmp_path 目录，避免相互污染。
 """
@@ -26,15 +26,21 @@ from features.find_relevant_memories import (
     find_relevant_memories,
     reset_relevant_memories_cache,
 )
+import features.find_relevant_memories as frm
 
 
-# 所有用例之间互相隔离缓存。性能优化加缓存后，若不 reset，前一个测试的 prefix
-# 会被相似 query 命中，造成偶发"用了上一个测试的 fake LLM 输出"的幽灵问题。
+# 所有用例之间互相隔离缓存与节流状态。性能优化加缓存后，若不 reset，前一个测试
+# 的 prefix 会被相似 query 命中，造成偶发"用了上一个测试的 fake LLM 输出"的幽灵问题。
 @pytest.fixture(autouse=True)
 def _reset_cache():
     reset_relevant_memories_cache()
     yield
     reset_relevant_memories_cache()
+
+
+def _clear_throttle(monkeypatch):
+    """模拟节流窗口过期：把上次 side-query 时刻置 None（仅清节流，不动缓存）。"""
+    monkeypatch.setattr(frm, "_last_side_query_at", None)
 
 
 # 旧测试统一用这个 query —— 长度 >= _SKIP_LOOKUP_MIN_CHARS(10) 才能进入正常路径
@@ -196,7 +202,7 @@ def test_prefix_empty_when_no_match(tmp_path: Path):
 
 
 def test_prefix_format_with_fresh_memory(tmp_path: Path):
-    """新鲜记忆不带 freshness 警告。"""
+    """新鲜记忆不带 freshness 警告；注入的是摘要（description）而非正文。"""
     _write_memory(tmp_path, "a", "desc-a", body="this is body A")
     _write_memory(tmp_path, "b", "desc-b", body="this is body B")
     fake = FakeLLM(names=["a.md"])
@@ -207,7 +213,11 @@ def test_prefix_format_with_fresh_memory(tmp_path: Path):
     assert prefix.endswith("\n\n")
     assert "Relevant memories selected for this turn (1)" in prefix
     assert "## a.md" in prefix
-    assert "this is body A" in prefix
+    # 注入摘要（frontmatter description），不注入正文
+    assert "desc-a" in prefix
+    assert "this is body A" not in prefix
+    # 给出记忆目录路径，便于模型按需 Read
+    assert f"Memory directory: {tmp_path}" in prefix
     # 新鲜 → 不应带 freshness 警告子块
     assert "days old" not in prefix
     # 未被选中的不出现
@@ -230,30 +240,17 @@ def test_prefix_includes_freshness_for_old_memory(tmp_path: Path):
     assert "Verify against current code" in prefix
 
 
-def test_prefix_skips_unreadable_memory(tmp_path: Path):
-    """读全文失败的条目不应让整个 prefix 崩，只该跳过这一条。"""
+def test_prefix_skips_file_missing_from_scan(tmp_path: Path):
+    """已被 scan 排除的文件（如被删除）不应让整个 prefix 崩，只该跳过这一条。"""
     _write_memory(tmp_path, "good", "g")
     _write_memory(tmp_path, "bad", "b")
-    # 把 bad.md 删掉但保留它在 selected 列表
+    # 把 bad.md 删掉 → scan 阶段就排除，selected 里只剩 good.md
     (tmp_path / "bad.md").unlink()
 
     fake = FakeLLM(names=["good.md", "bad.md"])
-    # 重新 scan 会把 bad.md 排除；这里我们直接验证：good.md 仍可注入
     prefix = build_relevant_memories_prefix(_LONG_Q, tmp_path, fake, "x")
     assert "## good.md" in prefix
     assert "## bad.md" not in prefix
-
-
-def test_prefix_truncates_huge_body(tmp_path: Path, monkeypatch):
-    """超大记忆正文应被截断 + 加 [truncated] 标记。"""
-    # 把上限调小以便测试
-    monkeypatch.setattr("features.find_relevant_memories.MAX_MEMORY_BODY_CHARS", 100)
-    _write_memory(tmp_path, "huge", "x", body="z" * 5_000)
-    _write_memory(tmp_path, "tiny", "y", body="short")
-
-    fake = FakeLLM(names=["huge.md"])
-    prefix = build_relevant_memories_prefix(_LONG_Q, tmp_path, fake, "x")
-    assert "[truncated]" in prefix
 
 
 def test_prefix_excludes_memory_md_even_if_selected(tmp_path: Path):
@@ -269,6 +266,16 @@ def test_prefix_excludes_memory_md_even_if_selected(tmp_path: Path):
     prefix = build_relevant_memories_prefix(_LONG_Q, tmp_path, fake, "x")
     assert "## MEMORY.md" not in prefix
     assert "## a.md" in prefix
+
+
+def test_prefix_uses_placeholder_when_no_description(tmp_path: Path):
+    """frontmatter 缺 description 时降级占位，不崩。"""
+    (tmp_path / "a.md").write_text("---\ntype: feedback\n---\nbody\n", encoding="utf-8")
+    _write_memory(tmp_path, "b", "y")
+    fake = FakeLLM(names=["a.md"])
+    prefix = build_relevant_memories_prefix(_LONG_Q, tmp_path, fake, "x")
+    assert "## a.md" in prefix
+    assert "read the file for details" in prefix
 
 
 # ---------------------------------------------------------------------------
@@ -362,20 +369,22 @@ def test_cache_hit_for_similar_query(tmp_path: Path):
     assert len(spy.calls) == 1
 
 
-def test_cache_miss_for_different_topic(tmp_path: Path):
-    """两次完全不同话题的 query → 第二次必须重新 side-query。"""
+def test_cache_miss_for_different_topic(tmp_path: Path, monkeypatch):
+    """两次完全不同话题的 query → 第二次必须重新 side-query（节流过期后）。"""
     _write_memory(tmp_path, "a", "desc")
     _write_memory(tmp_path, "b", "desc2")
     spy = _SpyLLM(names=["a.md"])
 
     build_relevant_memories_prefix(
         "How do I run the integration tests?", tmp_path, spy, "m")
+    # 模拟节流窗口过期：否则不同话题的第二次调用会被节流拦下
+    _clear_throttle(monkeypatch)
     build_relevant_memories_prefix(
         "What does the authentication middleware do exactly?", tmp_path, spy, "m")
     assert len(spy.calls) == 2
 
 
-def test_cache_invalidated_by_different_memory_dir(tmp_path: Path):
+def test_cache_invalidated_by_different_memory_dir(tmp_path: Path, monkeypatch):
     """memory_dir 切换 → 缓存必须失效（避免跨项目拿错记忆）。"""
     dir_a = tmp_path / "proj_a"
     dir_b = tmp_path / "proj_b"
@@ -389,7 +398,8 @@ def test_cache_invalidated_by_different_memory_dir(tmp_path: Path):
     spy = _SpyLLM(names=["a.md"])
     q = "How do I run the integration tests?"
     build_relevant_memories_prefix(q, dir_a, spy, "m")
-    # 切到 dir_b，即使 query 完全一致也要重跑
+    # 切到 dir_b，即使 query 完全一致也要重跑（先清节流避免被拦）
+    _clear_throttle(monkeypatch)
     spy.names = ["c.md"]
     build_relevant_memories_prefix(q, dir_b, spy, "m")
     assert len(spy.calls) == 2
@@ -421,3 +431,56 @@ def test_reset_relevant_memories_cache(tmp_path: Path):
     build_relevant_memories_prefix(_LONG_Q, tmp_path, spy, "m")
     assert len(spy.calls) == 2
 
+
+# ---------------------------------------------------------------------------
+# 性能优化：方案 4（会话级节流）
+# ---------------------------------------------------------------------------
+
+def test_throttle_blocks_repeat_side_query(tmp_path: Path):
+    """缓存未命中 + 节流窗口内 → 跳过 side-query（零 LLM 调用、不写缓存）。"""
+    _write_memory(tmp_path, "a", "desc")
+    _write_memory(tmp_path, "b", "desc2")
+    spy = _SpyLLM(names=["a.md"])
+
+    out1 = build_relevant_memories_prefix(_LONG_Q, tmp_path, spy, "m")
+    assert out1 != ""
+    assert len(spy.calls) == 1
+
+    # 不同话题 → 缓存未命中；但节流窗口内 → 直接空返回
+    out2 = build_relevant_memories_prefix(
+        "What does the authentication middleware do exactly?", tmp_path, spy, "m")
+    assert out2 == ""
+    assert len(spy.calls) == 1
+
+
+def test_throttle_skipped_does_not_poison_cache(tmp_path: Path):
+    """节流导致的空结果不写缓存：窗口过期后同话题提问仍能重新 side-query。"""
+    _write_memory(tmp_path, "a", "desc")
+    _write_memory(tmp_path, "b", "desc2")
+    spy = _SpyLLM(names=["a.md"])
+
+    build_relevant_memories_prefix(_LONG_Q, tmp_path, spy, "m")
+    # 不同话题被节流拦下 → 空结果，且不写缓存
+    build_relevant_memories_prefix(
+        "What does the authentication middleware do exactly?", tmp_path, spy, "m")
+    assert len(spy.calls) == 1
+
+    # 清节流后，被拦过的话题再问 → 重新 side-query（缓存没被空结果污染）
+    frm._last_side_query_at = None
+    out = build_relevant_memories_prefix(
+        "What does the authentication middleware do exactly?", tmp_path, spy, "m")
+    assert out != ""
+    assert len(spy.calls) == 2
+
+
+def test_will_need_side_query_respects_throttle(tmp_path: Path):
+    """spinner 判断（will_need_side_query）与 build 行为一致：节流窗口内返回 False。"""
+    _write_memory(tmp_path, "a", "desc")
+    _write_memory(tmp_path, "b", "desc2")
+    spy = _SpyLLM(names=["a.md"])
+
+    build_relevant_memories_prefix(_LONG_Q, tmp_path, spy, "m")
+    assert frm.will_need_side_query(
+        "What does the authentication middleware do exactly?", tmp_path) is False
+    # 同话题相似提问命中缓存 → 也不弹 spinner
+    assert frm.will_need_side_query(_LONG_Q, tmp_path) is False

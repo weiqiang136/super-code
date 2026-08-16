@@ -368,7 +368,8 @@ def list_sessions_since(since_ts: float, sessions_dir: Path | None = None,
 #
 # 分工：
 #   MEMORY.md 索引 = 常驻环境上下文（身份、项目事实）
-#   find_relevant_memories = 按 query 精选 5 条全文注入（技术细节、历史决策）
+#   find_relevant_memories = 按 query 精选最多 3 条摘要注入（技术细节、历史决策），
+#     需要细节时模型用 Read 工具打开记忆文件
 # ---------------------------------------------------------------------------
 
 
@@ -377,7 +378,7 @@ def build_memory_system_section(memory_dir: Path) -> str:
 
     保留 MEMORY.md 内容注入（常驻环境上下文），
     删除冗长的类型说明/保存格式/访问规则（省 ~2000 tokens）。
-    find_relevant_memories 仍按需注入精选记忆全文，两者互补。
+    find_relevant_memories 仍按需注入精选记忆摘要，两者互补。
     """
     preamble = (
         f"你有持久化记忆系统，位于 `{memory_dir}/`。\n"
