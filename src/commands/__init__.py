@@ -476,7 +476,7 @@ def _build_post_compact_attachments(ctx: CommandContext) -> list[dict]:
 
 def _cmd_compact(ctx: CommandContext, args: str) -> None:
     """压缩对话上下文，保留最近消息，用摘要替换历史消息。文件里的消息采用直接覆盖的方式"""
-    from features.compact import estimate_tokens
+    from features.compact import EmptySummaryError, estimate_tokens
 
     if ctx.compact_service is None:
         ctx.console.print("[dim]Compact service not available.[/dim]")
@@ -493,11 +493,23 @@ def _cmd_compact(ctx: CommandContext, args: str) -> None:
     # Step 7-A：构造压缩后重注入附件（plan / worker），与 compact 主流程解耦
     attachments = _build_post_compact_attachments(ctx)
 
-    new_msgs, _ = ctx.compact_service.compact(
-        messages, ctx.engine.system_prompt,
-        custom_instructions=args,
-        attachments=attachments,
-    )
+    try:
+        new_msgs, _ = ctx.compact_service.compact(
+            messages, ctx.engine.system_prompt,
+            custom_instructions=args,
+            attachments=attachments,
+            # 手动/自动轮间压缩同样先剪枝：剪完若已低于自动触发阈值则跳过摘要，
+            # 避免"上下文本不紧张还白付一次摘要费"。
+            skip_if_under_threshold=True,
+        )
+    except EmptySummaryError as exc:
+        # 摘要 LLM 返回空文本（重试后仍空）：中止压缩，历史保持原样。
+        # 覆盖写发生在下面，异常时不会执行 → 不会用空摘要吞掉历史（2026-08-16 事故）。
+        ctx.console.print(f"[red]✗ Compaction aborted:[/red] {exc}")
+        return
+    except Exception as exc:
+        ctx.console.print(f"[red]✗ Compaction failed:[/red] {exc}")
+        return
     ctx.engine.set_messages(new_msgs)
 
     # Phase 4: 压缩后 snippet 已过期（历史 read/edit 记录被摘要替代），

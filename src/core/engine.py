@@ -241,6 +241,10 @@ class Engine:
             new_history, _summary = self._compact_service.compact(
                 messages=history,
                 system_prompt=self._system_prompt,
+                # 轮内紧急压缩传 True：剪枝后若已低于自动触发阈值（0.8×窗口），
+                # 跳过 LLM 摘要直接返回剪枝结果——轮内场景多为"单轮读大文件"导致，
+                # 剪枝往往已经够用，无需再付一次摘要调用。
+                skip_if_under_threshold=True,
             )
             self._messages = new_history + current_turn
             # 更新 _turn_start_len，保证 cancel_turn() 截断到正确位置

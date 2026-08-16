@@ -56,6 +56,22 @@ COMPACT_BOUNDARY_MARKER = "<!-- COMPACT_BOUNDARY -->"
 # 也识别为边界，避免老 session 第一次重新压缩时仍然套娃。
 _LEGACY_SUMMARY_PREFIX = "[This is a summary of the conversation so far"
 
+# ── Tool-result 剪枝（先瘦身再决定是否摘要，2026-08-14 新增） ────────────────
+# 上下文膨胀的元凶常常不是对话本身，而是几个超大工具输出（grep 全仓库 / 读大文件 /
+# bash 大输出）。剪枝在摘要之前先把这些输出的"中间段"裁掉：纯本地零成本、不调 LLM、
+# 保留头尾（开头通常是命令/摘要信息，结尾通常是错误或最终结果，中间多为重复噪音）。
+# 很多场景剪完 token 已低于触发阈值，根本不需要走 LLM 摘要。
+PRUNE_THRESHOLD_CHARS = 8192   # history 中 tool_result 文本超过该长度才剪（≈2-4K token）
+PRUNE_HEAD_CHARS = 4096        # 保留头部字符数
+PRUNE_TAIL_CHARS = 1024        # 保留尾部字符数
+# recent 的剪枝阈值高于 history：recent 是"当前任务正在进行时"的上下文，模型可能
+# 正基于完整输出工作（如刚 grep 完准备写代码）。只有真正的巨型输出（>32K 字符，
+# 占 token 大头）才剪；中等输出（几千到 2 万字符、可能正被分析）保留完整。
+PRUNE_RECENT_THRESHOLD_CHARS = 32768
+# 剪枝标记：替换被裁掉的中间段，提示模型此处内容被截断（与 COMPACT_BOUNDARY_MARKER
+# 同为纯文本嵌入，对 LLM 无副作用、对持久化天然兼容）
+PRUNE_MARKER = "\n\n[... tool result middle pruned ...]\n\n"
+
 # 三明治结构 prompt：
 #   - 首尾各嵌一遍"禁止调工具"硬指令（NO_TOOLS_PREAMBLE/TRAILER）：summarizer 偶尔
 #     不听话会试图调工具；本路径调用没启用 tools，模型若返回 tool_use 块会让我们
@@ -184,6 +200,16 @@ def _is_ptl_error(exc: BaseException) -> bool:
     """
     msg = str(exc).lower()
     return any(k in msg for k in _PTL_KEYWORDS)
+
+
+class EmptySummaryError(Exception):
+    """摘要 LLM 返回空文本（思考模型偶发把全部输出放进 reasoning_content、
+    content 为空），重试后仍为空。压缩必须中止而不是拿空摘要覆盖历史。"""
+
+
+# 空摘要重试次数：DeepSeek 等思考模型 content 为空多为偶发，重试 1 次成功率高；
+# 仍空则抛 EmptySummaryError 由调用方中止压缩（历史保持原样）。
+EMPTY_SUMMARY_RETRY_MAX = 1
 
 
 def _drop_head_for_ptl(messages: list[dict]) -> list[dict] | None:
@@ -369,6 +395,81 @@ def _split_recent(messages: list[dict]) -> tuple[list[dict], list[dict]]:
 
 
 # ---------------------------------------------------------------------------
+# Tool-result 剪枝
+# ---------------------------------------------------------------------------
+
+def _prune_text(text: str, threshold_chars: int = PRUNE_THRESHOLD_CHARS) -> str | None:
+    """单条 tool_result 文本剪枝：超过阈值则保留头尾 + 剪枝标记，否则返回 None。
+
+    纯本地确定性操作：不调 LLM、不改消息结构，只替换超长文本的中间段。
+    Python str 按 Unicode code point 计长与切片，不会拆散 surrogate pair。
+    threshold_chars 可传入不同阈值（recent 用更高阈值，见 PRUNE_RECENT_THRESHOLD_CHARS）。
+    """
+    if len(text) <= threshold_chars:
+        return None
+    return text[:PRUNE_HEAD_CHARS] + PRUNE_MARKER + text[-PRUNE_TAIL_CHARS:]
+
+
+def prune_tool_results(messages: list[dict],
+                       threshold_chars: int = PRUNE_THRESHOLD_CHARS) -> tuple[list[dict], dict]:
+    """剪掉 messages 中所有超长 tool_result 的中间段，返回 (新消息列表, 统计)。
+
+    只处理 user 消息 content 里 type == "tool_result" 的 block，其余消息/block
+    原样保留——消息条数、角色交替、tool_use/tool_result 配对全部不变，
+    不会触发任何 API 400 防御逻辑（_fix_alternation / _to_openai_messages 无感）。
+
+    被剪的 block 是重建的新 dict（浅拷贝 + 替换 content），不污染调用方的原始消息，
+    因此调用方（compact 的 history 切片共享 engine._messages 的 dict）也安全。
+
+    threshold_chars：超过该长度的 tool_result 文本才剪。调用方按场景区分——
+    history 用默认 8192（旧对话，剪了损失小）；recent 用更高的
+    PRUNE_RECENT_THRESHOLD_CHARS（当前任务可能正依赖完整输出）。
+
+    返回的统计 dict：{"pruned": 剪了几条, "chars_removed": 共省多少字符}。
+    """
+    pruned_count = 0
+    chars_removed = 0
+    out: list[dict] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        # 快速跳过：不含 tool_result block 的消息原样保留
+        if not (isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )):
+            out.append(msg)
+            continue
+        new_blocks: list[Any] = []
+        changed = False
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                new_blocks.append(block)      # 非 tool_result block（text/image 等）原样保留
+                continue
+            text = block.get("content", "")
+            if not isinstance(text, str):
+                new_blocks.append(block)      # 非 str content（异常形态）不剪，防御性跳过
+                continue
+            pruned = _prune_text(text, threshold_chars)
+            if pruned is None:
+                new_blocks.append(block)
+                continue
+            # 重建 block：浅拷贝 + 替换 content，保留 tool_use_id/is_error/metadata 等字段
+            new_block = dict(block)
+            new_block["content"] = pruned
+            new_blocks.append(new_block)
+            changed = True
+            pruned_count += 1
+            chars_removed += len(text) - len(pruned)
+        if changed:
+            new_msg = dict(msg)
+            new_msg["content"] = new_blocks
+            out.append(new_msg)
+        else:
+            out.append(msg)
+    stats = {"pruned": pruned_count, "chars_removed": chars_removed}
+    return out, stats
+
+
+# ---------------------------------------------------------------------------
 # CompactService
 # ---------------------------------------------------------------------------
 
@@ -386,8 +487,14 @@ class CompactService:
         system_prompt: str,
         custom_instructions: str = "",
         attachments: list[dict] | None = None,
+        skip_if_under_threshold: bool = False,
     ) -> tuple[list[dict], str]:
         """压缩 messages，返回 (new_messages, summary_text)。
+
+        skip_if_under_threshold：True 时，若剪枝后总 token 已低于自动压缩触发阈值
+        （should_compact 判定），则跳过 LLM 摘要、直接返回剪枝结果——"先瘦身再摘要"，
+        很多场景剪完根本不需要摘要（零 LLM 调用、零成本）。False 时保持旧行为
+        （永远走摘要），供需要强制摘要的调用方使用。
 
         返回的消息列表结构：
             [frozen_prefix（含历次旧边界及其 ack）, user: 新边界+摘要, assistant: 确认,
@@ -425,6 +532,31 @@ class CompactService:
             # 增量太少，没东西可总结：保持 messages 不变
             return list(messages), "(nothing to compact)"
 
+        # 2.5) Tool-result 剪枝：摘要前先裁掉超长工具输出的中间段（先瘦身再摘要）。
+        # history 与 recent 都要剪，但阈值不同：
+        #   - history 用默认阈值 8192 → 摘要 LLM 的输入瘦身（省钱）
+        #   - recent 用高阈值 32768 → 只剪真正的巨型输出（当前任务可能正依赖
+        #     完整输出，如刚 grep 完准备写代码；中型输出保留完整）
+        # 剪枝是纯本地零成本操作；剪完若已低于自动压缩触发阈值，直接跳过 LLM 摘要
+        # 返回剪枝结果——很多"上下文膨胀"的元凶只是几个超大工具输出（常在 recent 里，
+        # _split_recent 按 token 保留尾部会把它们留在 recent），剪完根本不需要摘要。
+        # skip_if_under_threshold 由自动路径（轮间/轮内）传 True。
+        pruned_history, prune_stats = prune_tool_results(history)
+        pruned_recent, recent_stats = prune_tool_results(
+            recent, threshold_chars=PRUNE_RECENT_THRESHOLD_CHARS)
+        total_pruned = prune_stats["pruned"] + recent_stats["pruned"]
+        if total_pruned > 0 and skip_if_under_threshold \
+                and not should_compact(
+                    frozen_prefix + pruned_history + pruned_recent, self._model):
+            summary_note = (
+                f"(prune only: {total_pruned} tool result(s) trimmed, "
+                f"{prune_stats['chars_removed'] + recent_stats['chars_removed']:,} "
+                "chars removed — context under threshold, no summary needed)"
+            )
+            return list(frozen_prefix) + pruned_history + pruned_recent, summary_note
+        history = pruned_history
+        recent = pruned_recent
+
         prompt = COMPACT_PROMPT
         if custom_instructions:
             prompt += f"\n\nAdditional instructions: {custom_instructions}"
@@ -451,7 +583,12 @@ class CompactService:
         # "context_length_exceeded"）。捕获后从头部丢一段重试，最多 PTL_RETRY_MAX 次。
         # 不在此处吞其它异常（鉴权、网络、限流等），避免把无关错误误判成 PTL 反复丢消息。
         # 失败终态：把最后一次异常抛出去，由调用方（tui/app.py 的熔断器或 _cmd_compact）处理。
+        # 空摘要兜底：思考模型偶发 content 为空（输出全在 reasoning_content）。
+        # 不能像以前那样用 "(compact produced empty summary)" 继续落盘——那会把整个
+        # history 覆盖成一行空摘要、信息全丢（2026-08-16 实测事故）。重试
+        # EMPTY_SUMMARY_RETRY_MAX 次仍空则抛 EmptySummaryError，由调用方中止压缩。
         attempt = 0
+        empty_retries = 0
         while True:
             try:
                 response = self._client.create(
@@ -461,7 +598,6 @@ class CompactService:
                     messages=cleaned,
                     effort=self._effort,
                 )
-                break
             except Exception as e:
                 if not _is_ptl_error(e) or attempt >= PTL_RETRY_MAX:
                     raise
@@ -471,21 +607,28 @@ class CompactService:
                     raise
                 cleaned = truncated
                 attempt += 1
+                continue
 
-        # 提取摘要文本
-        summary_text = ""
-        for block in response.content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                summary_text += block.get("text", "")
-            elif hasattr(block, "text"):
-                summary_text += block.text
+            # 提取摘要文本
+            summary_text = ""
+            for block in response.content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    summary_text += block.get("text", "")
+                elif hasattr(block, "text"):
+                    summary_text += block.text
 
-        # Step 4：剥 <analysis> 草稿块、提取 <summary> 正式块。
-        # _format_compact_summary 内部带多级 fallback，对任何输入形态都不会返回 None。
-        summary_text = _format_compact_summary(summary_text)
+            # Step 4：剥 <analysis> 草稿块、提取 <summary> 正式块。
+            # _format_compact_summary 内部带多级 fallback，对任何输入形态都不会返回 None。
+            summary_text = _format_compact_summary(summary_text)
 
-        if not summary_text.strip():
-            summary_text = "(compact produced empty summary)"
+            if summary_text.strip():
+                break
+            if empty_retries >= EMPTY_SUMMARY_RETRY_MAX:
+                raise EmptySummaryError(
+                    "摘要 LLM 连续返回空文本（content 为空，思考模型常见），"
+                    "压缩已中止——历史保持原样，请重试"
+                )
+            empty_retries += 1
 
         # 3) 拼装：frozen_prefix + [新边界 summary, ack] + recent
         # COMPACT_BOUNDARY_MARKER 必须放在 content 最开头（_is_compact_boundary 用 lstrip 后
