@@ -7,7 +7,9 @@ from typing import Iterator, Any
 from core.llm import LLMClient
 from core.tool import Tool, ToolResult
 from core.permissions import PermissionChecker
-from features.compact import estimate_tokens, get_context_window
+from features.compact import (estimate_tokens, get_context_window,
+                               prune_tool_results, PRUNE_RECENT_THRESHOLD_CHARS,
+                               PRUNE_THRESHOLD_CHARS)
 
 
 # Windows 终端粘贴 UTF-16 剪贴板时可能把代理对当成两个独立码点喂进 stdin，
@@ -232,10 +234,21 @@ class Engine:
 
         history = self._messages[:self._turn_start_len]
         current_turn = self._messages[self._turn_start_len:]
+        did_something = False
 
-        # 历史消息太少，不值得压缩
+        # 先裁本轮超长 tool_result：无论历史多少条都执行，零 LLM 调用
+        # 修复：巨型 Bash/Grep 输出堆在 current_turn 里，原先永远不被裁剪
+        pruned_ct, ct_stats = prune_tool_results(
+            current_turn, threshold_chars=PRUNE_RECENT_THRESHOLD_CHARS
+        )
+        if ct_stats["pruned"] > 0:
+            current_turn = pruned_ct
+            self._messages = history + current_turn
+            did_something = True
+
+        # 历史消息太少，不值得走 LLM 摘要；但上面的 current_turn 裁剪仍会执行
         if len(history) < 10:
-            return False
+            return did_something
 
         try:
             new_history, _summary = self._compact_service.compact(
@@ -249,11 +262,12 @@ class Engine:
             self._messages = new_history + current_turn
             # 更新 _turn_start_len，保证 cancel_turn() 截断到正确位置
             self._turn_start_len = len(new_history)
-            return True
+            did_something = True
         except Exception:
-            # 压缩失败时静默返回 False，让本轮继续——下一次 LLM 调用
-            # 可能因超 context window 失败，但至少不因压缩异常而中断用户操作。
-            return False
+            # 压缩失败时静默继续——下一次 LLM 调用可能因超 context window 失败，
+            # 但至少不因压缩异常而中断用户操作。
+            pass
+        return did_something
 
     def submit(self, user_input: str | list) -> Iterator[tuple]:
         # 清洗 lone surrogate（仅 str 路径，list 路径由内部构造不会含非法码点）
@@ -271,6 +285,7 @@ class Engine:
             self._session_store.append_message(user_msg)
 
         try:
+            _compact_done = False  # 每次 LLM 调用最多触发一次轮内压缩，防止重复循环
             while True:
                 if self._aborted:
                     raise AbortedError()
@@ -280,10 +295,23 @@ class Engine:
                 # 阈值设 0.9（而非 1.0），给压缩后的 compact prompt 留余量。
                 estimated = estimate_tokens(self._messages)
                 threshold = int(get_context_window(self._model) * _INTRA_TURN_COMPACT_TRIGGER_RATIO)
-                if estimated > threshold:
+                if estimated > threshold and not _compact_done:
                     yield ("compact",)
                     self._intra_turn_compact()
+                    _compact_done = True
+                    continue  # RC4：压缩后重新估算，避免压完仍超限就直接发请求
 
+                # RC4 兜底：continue 重估后仍超限（估算失真场景），对 current_turn 用更激进的
+                # 阈值强剪——每条 tool_result 最多保留头尾 ~5K 字符，确保不裸奔发超限请求
+                if estimated > threshold and self._turn_start_len is not None:
+                    hard_pruned, _ = prune_tool_results(
+                        self._messages[self._turn_start_len:],
+                        threshold_chars=PRUNE_THRESHOLD_CHARS,
+                    )
+                    self._messages = self._messages[:self._turn_start_len] + hard_pruned
+
+                # 进入实际 LLM 调用，重置标志（下一轮工具迭代可再次压缩）
+                _compact_done = False
                 tool_uses = []
                 tools_schema = [t.to_api_schema() for t in self._tools.values()] if self._tools else None
 

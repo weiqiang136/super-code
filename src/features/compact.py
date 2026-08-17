@@ -9,7 +9,7 @@ from core.llm import LLMClient
 # Constants
 # ---------------------------------------------------------------------------
 
-CHARS_PER_TOKEN = 4                     # 非 CJK 字符的粗估比例（约 4 字符 ≈ 1 token）
+CHARS_PER_TOKEN = 3                     # 非 CJK 字符的粗估比例；改3比4更保守，减少代码/JSON 场景低估
 MIN_RECENT_MESSAGES = 6                 # 至少保留最近 N 条消息不压缩
 MIN_RECENT_TOKENS = 10_000              # 至少保留最近 N 个 token 不压缩
 COMPACT_MAX_OUTPUT_TOKENS = 16_384        # 摘要最大输出 token 数
@@ -261,6 +261,11 @@ def _text_of(content: Any) -> str:
                 c = block.get("content", "")
                 if isinstance(c, str):
                     parts.append(c)
+                elif isinstance(c, list):
+                    # tool_result content 可能是 block 列表，如 [{"type":"text","text":"..."}]
+                    for cb in c:
+                        if isinstance(cb, dict):
+                            parts.append(cb.get("text", ""))
                 parts.append(str(block.get("input", "")))
             elif hasattr(block, "text"):
                 parts.append(getattr(block, "text", ""))
