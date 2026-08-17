@@ -59,13 +59,19 @@ class SpinnerManager:
     def __init__(self, console: Console):
         self._console = console
         self._live: Live | None = None
+        self._spinner: Spinner | None = None
 
     def start(self, text: str = "Thinking…"):   # 启动一个带提示文本的点状旋转加载动画，每秒刷新12次且结束后自动消失。
-        if self._live is not None:
-            self._live.stop()
-            self._live = None
+        # 幂等：Live 已在运行时只原地换文本，不销毁重建。思考模型按 token 高频
+        # 产生 thinking 事件，若每次都 stop+重建（清屏+重启刷新线程），spinner 会
+        # 忽隐忽现、出现"没反应"的空窗。复用同一个 Spinner 实例避免动画相位重置。
+        if self._live is not None and self._spinner is not None:
+            self._spinner.text = Text(text, style="dim")
+            self._live.update(self._spinner)
+            return
+        self._spinner = Spinner("dots", text=Text(text, style="dim"))
         self._live = Live(
-            Spinner("dots", text=Text(text, style="dim")),
+            self._spinner,
             console=self._console, refresh_per_second=12, transient=True,
         )
         self._live.start()

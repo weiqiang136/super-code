@@ -16,7 +16,9 @@ from prompt_toolkit.layout.containers import HSplit, Window, FloatContainer, Flo
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
+from rich.cells import cell_len
 from rich.console import Console
+from rich.text import Text
 
 
 def _cursor_distance_to_bottom() -> int:
@@ -193,14 +195,21 @@ def bordered_prompt(
             return [(color, f'{_BAR}{fill}')]
 
         min_frame = 4  # 标题两端至少保留 ──（各 2 字符）
-        max_title = width - len(_TITLE_PREFIX) - len(_TITLE_SUFFIX) - min_frame
+        # 标题最大列宽 = 终端宽度 - 边框开销（cell_len 按显示列宽计，中文/emoji 占 2 列，
+        # len() 只数字符数会低估宽度导致标题溢出边框），再加 0.6 比例上限，
+        # 防止超宽终端上标题撑满整条边框、左右 ─ 填充几乎消失。
+        max_title = min(width - cell_len(_TITLE_PREFIX) - cell_len(_TITLE_SUFFIX) - min_frame,
+                        int(width * 0.6))
         if max_title <= 0:
             fill = _BAR * max(0, width - 1)
             return [(color, f'{_BAR}{fill}')]
 
-        display_title = title[:max_title] + ("\u2026" if len(title) > max_title else "")
+        # 按显示列宽截断 + 省略号（… 宽度由 Text.truncate 自动计入），存储的完整标题不受影响
+        _title_text = Text(title)
+        _title_text.truncate(max_title, overflow="ellipsis")  # 原地修改，返回 None，不能链式
+        display_title = _title_text.plain
         title_segment = f"{_TITLE_PREFIX}{display_title}{_TITLE_SUFFIX}"
-        remaining = width - len(title_segment) - 1  # -1 for leading ─
+        remaining = width - cell_len(title_segment) - 1  # -1 for leading ─
         left_fill = max(0, remaining // 2)
         right_fill = max(0, remaining - left_fill)
         return [(color, _BAR + _BAR * left_fill + title_segment + _BAR * right_fill)]
