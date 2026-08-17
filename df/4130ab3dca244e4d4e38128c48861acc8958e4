@@ -1,0 +1,26 @@
+src/core/engine.py
+  s_5aaa38ae3a1794::t_97fadf8c8a51a5 237,239-249,251,265,267-270
+  s_5aaa38ae3a1794::t_2b9489a6515632 10,238,303
+  s_5aaa38ae3a1794::t_e77fc3afc640b4 11-12
+  s_5aaa38ae3a1794::t_41d6dde7e611b8 288,298,301-302,313-314
+  s_5aaa38ae3a1794::t_b20d72bfc6a53b 304-312
+src/features/compact.py
+  s_5aaa38ae3a1794::t_41b7e05bf3e8e1 12
+  s_5aaa38ae3a1794::t_cf25d27c64c97f 264-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "df4130ab3dca244e4d4e38128c48861acc8958e4",
+  "prompts": {},
+  "sessions": {
+    "s_5aaa38ae3a1794": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bdeac39-e00d-4818-8363-93d3877869a9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
