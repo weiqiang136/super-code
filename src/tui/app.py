@@ -39,7 +39,7 @@ from tools import AskUserQuestionTool, BashTool, FileEditTool, FileReadTool, Fil
 from tools.agent import AgentTool, SendMessageTool, TaskStopTool
 from tui.prompt import bordered_prompt, slash_completer
 from tui.query import run_query
-from tui.rendering import SpinnerManager
+from tui.rendering import SpinnerManager, SPINNER_MEMORY
 
 console = Console()
 
@@ -525,7 +525,7 @@ def main() -> None:
                 _needs_llm = will_need_side_query(user_input, memory_dir)
                 if _needs_llm:
                     _mem_spinner = SpinnerManager(console)
-                    _mem_spinner.start("Searching memories…")
+                    _mem_spinner.start("Searching memories…", SPINNER_MEMORY)
                 try:
                     memory_prefix = build_relevant_memories_prefix(
                         user_input, memory_dir, engine._client, selector_model,

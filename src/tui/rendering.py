@@ -11,6 +11,14 @@ from rich.text import Text
 
 _BLOCK_BOUNDARY_RE = re.compile(r"\n(?=\n|\#{1,6} |```|---|\* |- |\d+\. )")
 
+# 各 UI 场景专属 spinner 风格（Rich 内置）与配色，让不同状态一眼可辨、告别全场景单一灰白 dots。
+# 元组格式: (动画风格名, Rich 颜色名)，start() 里解包。
+SPINNER_THINKING = ("dots8", "cyan")           # 思考中：点阵旋转（青，冷静）
+SPINNER_COMPACT = ("arc", "yellow")            # 上下文压缩：圆弧转动（黄，整理收拢）
+SPINNER_PREPARING = ("line", "bright_blue")    # 准备工具调用：短线脉冲（蓝，待命）
+SPINNER_WORKING = ("bouncingBar", "green")     # 工具执行中：弹跳条（绿，干活推进）
+SPINNER_MEMORY = ("star", "magenta")           # 记忆检索：星光闪烁（品红，联想检索）
+
 
 class StreamingMarkdown:
     def __init__(self, console: Console):
@@ -60,16 +68,28 @@ class SpinnerManager:
         self._console = console
         self._live: Live | None = None
         self._spinner: Spinner | None = None
+        self._spinner_name: str | tuple | None = None   # 当前 (风格名, 颜色) 配置（Rich Spinner 不保存 name，需自己记录）
 
-    def start(self, text: str = "Thinking…"):   # 启动一个带提示文本的点状旋转加载动画，每秒刷新12次且结束后自动消失。
+    def start(self, text: str = "Thinking…", spinner: str | tuple[str, str] = "dots"):
+        # 启动带提示文本的加载动画，每秒刷新12次且结束后自动消失。
+        # spinner 参数：Rich 动画风格名，或 (风格名, 颜色) 元组（见上方 SPINNER_* 常量）；
+        # 只传风格名时默认青色。帧与文字同色，去掉 dim 避免灰白。
+        name, color = spinner if isinstance(spinner, tuple) else (spinner, "cyan")
         # 幂等：Live 已在运行时只原地换文本，不销毁重建。思考模型按 token 高频
         # 产生 thinking 事件，若每次都 stop+重建（清屏+重启刷新线程），spinner 会
         # 忽隐忽现、出现"没反应"的空窗。复用同一个 Spinner 实例避免动画相位重置。
+        # 但请求的风格/颜色与当前不同（场景切换）时必须重建，否则换不了动画。
         if self._live is not None and self._spinner is not None:
-            self._spinner.text = Text(text, style="dim")
-            self._live.update(self._spinner)
-            return
-        self._spinner = Spinner("dots", text=Text(text, style="dim"))
+            if self._spinner_name != spinner:
+                self._live.stop()
+                self._live = None
+                self._spinner = None
+            else:
+                self._spinner.text = Text(text, style=color)
+                self._live.update(self._spinner)
+                return
+        self._spinner = Spinner(name, text=Text(text, style=color), style=color)
+        self._spinner_name = spinner
         self._live = Live(
             self._spinner,
             console=self._console, refresh_per_second=12, transient=True,

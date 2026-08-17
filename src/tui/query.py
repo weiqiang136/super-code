@@ -8,7 +8,8 @@ from rich.markup import escape as _escape
 
 from core.engine import AbortedError, Engine, _REJECT_MESSAGE, _SIBLING_REJECT_MESSAGE
 from tui.keylistener import EscListener
-from tui.rendering import StreamingMarkdown, SpinnerManager, tool_preview, collapsed_tool_summary
+from tui.rendering import (StreamingMarkdown, SpinnerManager, tool_preview, collapsed_tool_summary,
+                           SPINNER_THINKING, SPINNER_COMPACT, SPINNER_PREPARING, SPINNER_WORKING)
 
 console = Console()
 
@@ -29,7 +30,7 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
     try:
         with listener:
             if not quiet:
-                spinner.start("Thinking…")
+                spinner.start("Thinking…", SPINNER_THINKING)
 
             for event in engine.submit(user_input):
                 if not quiet and streaming and listener.pressed:
@@ -41,13 +42,13 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
 
                 if event[0] == "thinking":
                     if not quiet and first_text:
-                        spinner.start("Thinking…")
+                        spinner.start("Thinking…", SPINNER_THINKING)
 
                 elif event[0] == "compact":
                     # 轮内紧急压缩：在工具链中途触发，显示专用提示
                     if not quiet:
                         md_stream.flush()
-                        spinner.start("Compacting context…")
+                        spinner.start("Compacting context…", SPINNER_COMPACT)
 
                 elif event[0] == "notification":
                     # worker 完成通知：engine 在 mid-turn 注入了通知到对话中
@@ -58,7 +59,7 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                             f"[dim]Worker completed ({count}).[/dim]" if count > 1
                             else "[dim]Worker completed.[/dim]"
                         )
-                        spinner.start("Thinking…")
+                        spinner.start("Thinking…", SPINNER_THINKING)
 
                 elif event[0] == "text":
                     if quiet:
@@ -77,7 +78,7 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                         md_stream.flush()
                     streaming = False
                     if not quiet:
-                        spinner.start("Preparing tool call…")
+                        spinner.start("Preparing tool call…", SPINNER_PREPARING)
 
                 elif event[0] == "tool_call":
                     if not quiet:
@@ -104,11 +105,11 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                             n = len(pending_tools)
                             if n > 1:
                                 names = [tn for tn, _ in pending_tools.values()]
-                                spinner.start(collapsed_tool_summary(names))
+                                spinner.start(collapsed_tool_summary(names), SPINNER_WORKING)
                             else:
                                 _, line = pending_tools.get(tool_id, ("", f"↳ {tool_name}"))
                                 activity_text = activity or f"Running {tool_name}…"
-                                spinner.start(f"{line} … {activity_text}")
+                                spinner.start(f"{line} … {activity_text}", SPINNER_WORKING)
 
                 elif event[0] == "tool_result":
                     if not quiet:
@@ -129,10 +130,10 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                             console.print(f"  [dim]{_escape(line)}[/dim] [green]✓[/green]", highlight=False)
                         if pending_tools:
                             names = [tn for tn, _ in pending_tools.values()]
-                            spinner.start(collapsed_tool_summary(names))
+                            spinner.start(collapsed_tool_summary(names), SPINNER_WORKING)
                         else:
                             streaming = False
-                            spinner.start("Thinking…")
+                            spinner.start("Thinking…", SPINNER_THINKING)
                             first_text = True
 
                 elif event[0] == "error":
