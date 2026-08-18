@@ -103,10 +103,15 @@ class Engine:
         return ""
 
     def set_messages(self, messages: list[dict]) -> None:
-        self._messages = [
-            {"role": m["role"], "content": m.get("content", "")}
-            for m in messages
-        ]
+        self._messages = []
+        for m in messages:
+            new_msg = {"role": m["role"], "content": m.get("content", "")}
+            # 保留 reasoning_content：DeepSeek 等思考模型要求原样带回下一轮
+            # （AGENTS.md 约定）。此前丢失会导致 resume/compact/fork 恢复后
+            # 上下文骤减（ctx 占比"下降"假象）且模型丢失历史思考链。
+            if m.get("reasoning_content"):
+                new_msg["reasoning_content"] = m["reasoning_content"]
+            self._messages.append(new_msg)
 
     def set_session_store(self, session_store) -> None:
         self._session_store = session_store
