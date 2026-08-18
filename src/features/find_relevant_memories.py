@@ -49,7 +49,7 @@ SELECT_MAX_TOKENS = 256
 # 会话级节流：距上次 side-query 不足该秒数时直接跳过（不调 LLM、不写缓存）。
 # side-query 的价值在"话题开始时给一次方向"，5 分钟内连续提问围绕同一工作
 # 上下文，重复挑选边际收益低；话题漂移也等窗口过后再查。
-THROTTLE_SECONDS = 300
+THROTTLE_SECONDS = 900
 
 # 触发 side-query 的最低记忆数：少于这个数量直接全注入（不调用 LLM 反而更便宜）。
 MIN_MEMORIES_FOR_SIDE_QUERY = 2
