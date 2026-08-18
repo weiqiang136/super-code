@@ -228,33 +228,35 @@ def bordered_prompt(
             w = os.get_terminal_size().columns
         except OSError:
             w = 80
-        # 左侧：模式标签 + 上下文占用率；右侧：快捷键提示；中间填充
+        # 左：模式标签；右：ctx 进度条 + 百分比；中间 ─ 填充。极简：无快捷键提示。
         mode_label = f"{_BAR} [Plan Mode] " if mode_ref[0] else f"{_BAR} [Normal] "
-        right_hints = f" Enter send \u00b7 / commands \u00b7 Ctrl+C exit {_BAR}"
         base_color = 'fg:ansiyellow' if mode_ref[0] else 'fg:ansiwhite'
 
         # 上下文占用率：使用最近一次 API 返回的 input_tokens（tokenizer 精确计数），
         # 除以模型 context window 得到占用百分比。<70% 绿 / 70-90% 黄（逼近压缩阈值）/ >=90% 红。
         # 1M 大窗口下小占用会截断成 0%，用 round 四舍五入、不足 1% 显示 <1%。
-        # 后接 10 格进度条（每格 10%）：█ 实心/░ 空心，<10% 至少 1 格占位。
-        ctx_text, ctx_color = "", None
+        # 30 格 ▰/▱ 进度条（每格 3.3%）靠右，百分比在条后同色。
+        ctx_filled, ctx_empty, ctx_pct, ctx_color = "", "", "", None
         if ctx_usage is not None and ctx_usage[0]:
             used, window = ctx_usage[0], ctx_usage[1]
             if window:
                 pct = min(100, round(used * 100 / window))
-                filled = max(1, int(pct / 10 + 0.5))  # 四舍五入到格数，防 round() 银行家舍入跳格
-                bar = "█" * filled + "░" * (10 - filled)
-                label = f"Context {pct}% " if pct else "Context <1% "
-                ctx_text = f"{label}{bar} "
+                filled = round(pct / (100 / 30))  # 30 格，每格 3.3%
+                ctx_filled = "▰" * filled
+                ctx_empty = "▱" * (30 - filled)
+                ctx_pct = f" {pct}% " if pct else " <1% "
                 ctx_color = ('bold fg:ansired' if pct >= 90
                              else 'bold fg:ansiyellow' if pct >= 70
                              else 'bold fg:ansigreen')
 
-        fill = _BAR * max(0, w - 1 - len(mode_label) - len(ctx_text) - len(right_hints))
-        segments: list[tuple[str, str]] = [(base_color, f'{_BAR}{mode_label}')]
-        if ctx_text:
-            segments.append((ctx_color, ctx_text))
-        segments.append((base_color, f'{fill}{right_hints}'))
+        right_extra = ctx_filled + ctx_empty + ctx_pct
+        fill = _BAR * max(0, w - 1 - len(mode_label) - len(right_extra))
+        segments: list[tuple[str, str]] = [(base_color, f'{_BAR}{mode_label}{fill}')]
+        if ctx_color:
+            segments.append((ctx_color, ctx_filled))
+            segments.append(('dim', ctx_empty))
+            segments.append((ctx_color, ctx_pct))
+        segments.append((base_color, _BAR))
         return segments
 
     def _line_prefix(lineno, wrap_count):
