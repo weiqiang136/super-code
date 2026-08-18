@@ -487,10 +487,12 @@ def prune_tool_results(messages: list[dict],
 class CompactService:
     """通过 API 摘要压缩对话上下文。"""
 
-    def __init__(self, client: LLMClient, model: str, effort: str | None = None):
+    def __init__(self, client: LLMClient, model: str, effort: str | None = None,
+                 cost_tracker=None):
         self._client = client
         self._model = model
         self._effort = effort
+        self._cost_tracker = cost_tracker
 
     def compact(
         self,
@@ -680,6 +682,14 @@ class CompactService:
                         "content": "Acknowledged.",
                     })
                 new_messages.append(att)
+
+        # Step 8：压缩成功后更新 cost_tracker：
+        # 1) 记账本次摘要调用的 token/费用（此前非流式 create 不返回 usage，/cost 漏记）；
+        # 2) 覆盖 last_input_tokens 为压缩后新历史的估算值——摘要请求的 input 是压缩前的
+        #    旧历史，add_usage 会记成旧值导致底部栏 ctx 占用率虚高，下一轮对话再纠正为精确值。
+        if self._cost_tracker and response.usage:
+            self._cost_tracker.add_usage(self._model, response.usage)
+            self._cost_tracker.set_last_input_tokens(estimate_tokens(new_messages))
         return new_messages, summary_text
 
 

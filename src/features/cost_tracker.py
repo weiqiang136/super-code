@@ -112,6 +112,15 @@ class CostTracker:
         """最近一次 API 调用的 input_tokens（反映当前上下文大小）。"""
         return self._last_input_tokens
 
+    def set_last_input_tokens(self, n: int) -> None:
+        """手动覆盖 last_input_tokens（压缩成功后设为压缩后新历史的估算值）。
+
+        压缩摘要请求的 input 是压缩前的旧历史，add_usage 会把它记成旧值，
+        导致底部栏 ctx 占用率虚高；压缩后实际上下文是"摘要 + 尾部"，
+        先估算覆盖，下一轮对话 API 调用后自动纠正为精确值。
+        """
+        self._last_input_tokens = n
+
     @property
     def total_cost_usd(self) -> float:
         return self._total_cost_usd

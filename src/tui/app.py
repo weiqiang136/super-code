@@ -19,7 +19,7 @@ from core.context import build_system_prompt
 from core.engine import Engine
 from core.permissions import PermissionChecker
 from core.session import SessionStore
-from features.compact import CompactService, should_compact
+from features.compact import CompactService, get_context_window, should_compact
 from features.coordinator import (
     get_coordinator_system_prompt, get_coordinator_user_context,
     get_worker_system_prompt, is_coordinator_mode, set_coordinator_mode,
@@ -298,7 +298,9 @@ def main() -> None:
     permissions.set_plan_manager(plan_manager)
 
     # Compact service — 复用 engine 内部的 LLMClient
-    compact_service = CompactService(client=engine._client, model=app_config.model)
+    # cost_tracker 注入：压缩成功后记账 + 覆盖 last_input_tokens（底部栏 ctx 占用率）
+    compact_service = CompactService(client=engine._client, model=app_config.model,
+                                     cost_tracker=cost_tracker)
     engine.set_compact_service(compact_service)  # 注入 engine 供轮内紧急压缩使用
 
     # 注入 worker 通知回调：engine 在每轮工具执行完成后 drain 通知队列，
@@ -426,10 +428,15 @@ def main() -> None:
 
     while True:
         try:
+            # 底部栏 ctx 占用率：用最近一次 API 返回的 input_tokens（精确计数），
+            # 除以模型 context window。0 = 尚未调用 API，显示层会隐藏。
+            ctx_usage = [cmd_ctx.cost_tracker.last_input_tokens if cmd_ctx.cost_tracker else 0,
+                         get_context_window(cmd_ctx.model)]
             user_input = bordered_prompt(console, history=pt_history,
                                          completer=slash_completer, mode_ref=mode_ref,
                                          on_mode_toggle=_toggle_plan_mode,
-                                         session_title=cmd_ctx.session_store._title)
+                                         session_title=cmd_ctx.session_store._title,
+                                         ctx_usage=ctx_usage)
             if user_input is None:
                 user_input = ""
             user_input = user_input.strip()

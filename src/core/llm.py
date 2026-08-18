@@ -174,7 +174,16 @@ class LLMClient:
             resp = self._client.chat.completions.create(**params)
             choice = resp.choices[0].message if resp.choices else None
             text = (choice.content or "") if choice else ""
-            return StreamMessage(content=[{"type": "text", "text": text}], usage=None)
+            # 非流式响应同样捕获 usage（DeepSeek/OpenAI 均返回 prompt_tokens），
+            # 归一化字段名与流式路径（__iter__）保持一致；无 usage 时保持 None。
+            usage = None
+            raw_usage = getattr(resp, "usage", None)
+            if raw_usage is not None:
+                usage = {
+                    "input_tokens": getattr(raw_usage, "prompt_tokens", 0) or 0,
+                    "output_tokens": getattr(raw_usage, "completion_tokens", 0) or 0,
+                }
+            return StreamMessage(content=[{"type": "text", "text": text}], usage=usage)
         raise NotImplementedError(f"create not implemented for provider: {self.provider}")
 
     # 流式输出
