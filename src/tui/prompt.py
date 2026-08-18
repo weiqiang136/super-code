@@ -236,7 +236,9 @@ def bordered_prompt(
         # 除以模型 context window 得到占用百分比。<70% 绿 / 70-90% 黄（逼近压缩阈值）/ >=90% 红。
         # 1M 大窗口下小占用会截断成 0%，用 round 四舍五入、不足 1% 显示 <1%。
         # 30 格 ▰/▱ 进度条（每格 3.3%）靠右，百分比在条后同色。
-        ctx_filled, ctx_empty, ctx_pct, ctx_color = "", "", "", None
+        # 空心部分用同色调暗色 hex（prompt_toolkit 不支持 dim 属性，会 ValueError）。
+        _DIM_HEX = {'ansigreen': '#1f5e2a', 'ansiyellow': '#6b5e00', 'ansired': '#7a2020'}
+        ctx_filled, ctx_empty, ctx_pct, ctx_color, ctx_dim = "", "", "", None, None
         if ctx_usage is not None and ctx_usage[0]:
             used, window = ctx_usage[0], ctx_usage[1]
             if window:
@@ -245,16 +247,18 @@ def bordered_prompt(
                 ctx_filled = "▰" * filled
                 ctx_empty = "▱" * (30 - filled)
                 ctx_pct = f" {pct}% " if pct else " <1% "
-                ctx_color = ('bold fg:ansired' if pct >= 90
-                             else 'bold fg:ansiyellow' if pct >= 70
-                             else 'bold fg:ansigreen')
+                state = ('ansired' if pct >= 90
+                         else 'ansiyellow' if pct >= 70
+                         else 'ansigreen')
+                ctx_color = f'bold fg:{state}'
+                ctx_dim = f'fg:{_DIM_HEX[state]}'
 
         right_extra = ctx_filled + ctx_empty + ctx_pct
         fill = _BAR * max(0, w - 1 - len(mode_label) - len(right_extra))
         segments: list[tuple[str, str]] = [(base_color, f'{_BAR}{mode_label}{fill}')]
         if ctx_color:
             segments.append((ctx_color, ctx_filled))
-            segments.append(('dim', ctx_empty))
+            segments.append((ctx_dim, ctx_empty))  # 同色调暗色，整条颜色统一（实心亮/空心暗）
             segments.append((ctx_color, ctx_pct))
         segments.append((base_color, _BAR))
         return segments
