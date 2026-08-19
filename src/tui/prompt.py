@@ -426,11 +426,16 @@ def bordered_prompt(
         # 非占位符：执行默认单字符删除
         buf.delete_before_cursor(1)
 
+    # refresh_interval：面板心跳。worker 在后台线程更新状态，bordered_prompt 阻塞在
+    # app.run() 期间没有其他事件源，必须靠定时 invalidate 才能把 get_running_status()
+    # 的最新快照重绘出来。1s 间隔：worker 活动变化粒度是秒级，够跟手且开销可忽略。
+    # 用 prompt_toolkit 原生 refresh_interval（内部 async 任务随 run_async 自动启停），
+    # 普通模式（cb=None）保持 None = 事件驱动，零空转、零影响。
     app = PTApp(
         layout=Layout(root),
         key_bindings=kb,
         full_screen=False,
-        refresh_interval=None,
+        refresh_interval=1.0 if worker_status_cb is not None else None,
     )
     app.layout.focus(buf)
     try:
