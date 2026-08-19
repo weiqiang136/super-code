@@ -1,0 +1,24 @@
+src/tui/app.py
+  s_ace8953b2bf821::t_21b7f42657e920 470-473
+src/features/worker_manager.py
+  s_ace8953b2bf821::t_4fa72a457ad420 109,120-130
+src/tui/prompt.py
+  s_ace8953b2bf821::t_b8e0560c25c29c 378,392
+  s_ace8953b2bf821::t_0136518f86750d 339,341-343,360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c826cdd6813419c848463c026cb0365c3579c182",
+  "prompts": {},
+  "sessions": {
+    "s_ace8953b2bf821": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3011142da1b14ebb81b258d2e6b496a9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
