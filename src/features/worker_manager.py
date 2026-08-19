@@ -106,7 +106,7 @@ class WorkerManager:
         """返回进度面板所需的全部 worker 状态（运行中 + 已完成，按 spawn 序）。
 
         与 get_running_status 的区别：不筛选运行态，附带 status 字段
-        （running/completed/killed/failed），供常驻面板显示完成态（✓/✗）。
+        （running/completed/killed/failed），供面板显示完成态（✓/✗）。
         线程安全（_lock 保护）；status 的最终写发生在 worker 线程结束处。
         """
         with self._lock:
@@ -116,6 +116,17 @@ class WorkerManager:
                  "status": "running" if self._is_running(t) else t.status}
                 for t in self._tasks.values()
             ]
+
+    def clear_finished(self) -> None:
+        """清除所有已结束任务的记录（保留仍在运行的）。
+
+        供主循环在用户提交新一轮输入时调用：完成态面板只保留到下一轮输入，
+        之后不再占用输入框上方空间；运行中的任务不受影响（继续展示进度）。
+        """
+        with self._lock:
+            for task_id in [tid for tid, t in self._tasks.items()
+                            if not self._is_running(t)]:
+                del self._tasks[task_id]
 
     def _get_task(self, task_id: str) -> WorkerTask:
         with self._lock:

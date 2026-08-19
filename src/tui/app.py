@@ -467,6 +467,10 @@ def main() -> None:
         if not user_input:
             continue
 
+        # 用户提交了新一轮输入：清除已完成 worker 记录（保留运行中），
+        # 面板完成态随之消失，不再常驻输入框上方
+        worker_manager.clear_finished()
+
         if user_input.startswith("!") and len(user_input) > 1:
             import subprocess
             result = subprocess.run(user_input[1:].lstrip(),

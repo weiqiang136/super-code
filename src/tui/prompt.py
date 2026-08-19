@@ -336,8 +336,11 @@ def bordered_prompt(
         return segments
 
     def _workers_panel() -> list[tuple[str, str]]:
-        """面板 text callable：协调者模式常驻；运行中全展示、完成态保留、无任务占位。
+        """面板 text callable：仅任务执行期/完成态保留期显示。
 
+        有运行中任务 → 运行中全展示 + 完成态保留最近 _WORKER_DONE_MAX 个；
+        全部结束后完成态继续保留，直到用户提交下一轮输入（主循环 clear_finished）；
+        无任何记录（初始状态/已清除）→ 面板消失不占位。
         不做标题条/边框线：上边框已有 ─ 线，再铺一条会视觉重复（用户实测反馈）。
         条目自带 │ ⚙ 前缀 + 颜色分段，独立成行已足够区分。
         """
@@ -354,7 +357,7 @@ def bordered_prompt(
         if w < _WORKER_PANEL_MIN_WIDTH:
             return [("", "")]
         if not workers:
-            return [(_WORKER_GRAY, f"{_WORKER_ITEM_PREFIX}暂无任务")]
+            return [("", "")]   # 无任务记录 → 面板消失，不占位
         running = [wk for wk in workers if wk.get("status", "running") == "running"]
         done = [wk for wk in workers if wk.get("status", "running") != "running"]
         # 运行中全展示；完成的保留最近 _WORKER_DONE_MAX 个（spawn 序靠后 = 最近）
@@ -372,7 +375,7 @@ def bordered_prompt(
         return segments
 
     def _panel_height() -> Dimension:
-        """面板高度 callable：未启用或终端过窄时 0；否则按行数取值，至少 1 行（占位）。"""
+        """面板高度 callable：未启用/终端过窄/无任务记录时 0；否则按行数取值。"""
         if worker_status_cb is None:
             return Dimension(min=0, preferred=0)
         try:
@@ -386,7 +389,7 @@ def bordered_prompt(
         if w < _WORKER_PANEL_MIN_WIDTH:
             return Dimension(min=0, preferred=0)
         if not workers:
-            return Dimension(min=1, preferred=1, max=1)   # 占位行
+            return Dimension(min=0, preferred=0)   # 无任务记录 → 面板消失
         n_running = sum(1 for wk in workers if wk.get("status", "running") == "running")
         n_done = len(workers) - n_running
         n = n_running + min(n_done, _WORKER_DONE_MAX)   # 运行中全展示 + 最近完成
