@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Callable
 
 from prompt_toolkit.application import Application as PTApp
 from prompt_toolkit.application.current import get_app
@@ -100,6 +101,7 @@ def bordered_prompt(
     on_mode_toggle=None,                # 切换模式时的回调，由 app.py 传入，负责调用 plan_manager
     session_title: str = "",            # 当前会话标题，/rename 设置后显示在上边框
     ctx_usage: list | None = None,      # [已用 token, 窗口 token]，None 时不显示占用率
+    worker_status_cb: Callable[[], list[dict]] | None = None,  # 返回运行中 worker 状态列表，None 时不显示进度面板
 ) -> str:
     """带上下边框的输入框，输入 / 时弹出补全菜单，Shift+Tab 切换模式。
 
@@ -263,6 +265,82 @@ def bordered_prompt(
         segments.append((base_color, _BAR))
         return segments
 
+    # ===== worker 进度面板（输入框上方）=====
+    # 仅当 worker_status_cb 非 None 且确有运行中 worker 时显示：标题条 + 每 worker 一行。
+    # 无 worker 时高度归 0、不占行，对现有布局零影响。数据由外部回调注入（拉取式快照）。
+    _WORKER_PANEL_MAX = 3   # 最多同时展示的 worker 行数，超出折叠为 "… and N more"
+    _WORKER_PANEL_MIN_WIDTH = 40   # 终端列宽低于此值时不显示面板（最小内容也会溢出）
+    _WORKER_ITEM_PREFIX = "│ ⚙ "   # 条目前缀（box-drawing 竖线 + 齿轮，延续边框语言）
+
+    def _render_worker_item(wk: dict, width: int) -> list[tuple[str, str]]:
+        """单行条目：│ ⚙ 描述 · 当前活动 · N tools，三段不同颜色，按显示列宽截断。
+
+        描述固定上限（≤24 列或 1/3 宽度），活动吃掉剩余宽度（动态信息最醒目），
+        工具数固定后缀。截断用 cell_len 计显示列宽（中文/emoji 占 2 列）。
+        """
+        desc = (wk.get("description") or "Worker").strip()
+        act = (wk.get("activity") or "Idle").strip()
+        tools = wk.get("tool_uses", 0)
+        tools_str = f"{tools} tools"
+        sep = " · "
+        prefix_w = cell_len(_WORKER_ITEM_PREFIX)
+        inner_budget = max(1, width - prefix_w)
+        d = Text(desc)
+        d.truncate(min(24, inner_budget // 3), overflow="ellipsis")
+        d_text = d.plain
+        fixed_w = cell_len(tools_str) + cell_len(sep) * 2
+        a = Text(act)
+        a.truncate(max(4, inner_budget - cell_len(d_text) - fixed_w), overflow="ellipsis")
+        return [
+            ('fg:ansiwhite', _WORKER_ITEM_PREFIX),
+            ('fg:ansicyan', d_text + sep),
+            ('fg:ansiyellow', a.plain + sep),
+            ('fg:ansigreen', tools_str),
+        ]
+
+    def _workers_panel() -> list[tuple[str, str]]:
+        """面板 text callable：无 worker（或未启用）返回空文本；否则标题条 + 条目行。"""
+        if worker_status_cb is None:
+            return [("", "")]
+        try:
+            w = os.get_terminal_size().columns
+        except OSError:
+            w = 80
+        workers = worker_status_cb()
+        if not workers or w < _WORKER_PANEL_MIN_WIDTH:
+            return [("", "")]
+        segments: list[tuple[str, str]] = []
+        # 标题条：─ [N running] ────（与底部栏 [Normal] 标签同构）
+        head = f"{_BAR} [{len(workers)} running] "
+        segments.append(('bold fg:ansiwhite',
+                         head + _BAR * max(0, w - cell_len(head)) + "\n"))
+        shown = workers[:_WORKER_PANEL_MAX]
+        for i, wk in enumerate(shown):
+            segments.extend(_render_worker_item(wk, w))
+            if i < len(shown) - 1:
+                segments.append(("", "\n"))
+        if len(workers) > _WORKER_PANEL_MAX:
+            more = len(workers) - _WORKER_PANEL_MAX
+            segments.append(("", "\n"))
+            segments.append(('fg:ansiyellow', f"  … and {more} more"))
+        return segments
+
+    def _panel_height() -> Dimension:
+        """面板高度 callable：未启用、无 worker 或终端过窄时 0（不占行），否则按行数精确取值。"""
+        if worker_status_cb is None:
+            return Dimension(min=0, preferred=0)
+        try:
+            w = os.get_terminal_size().columns
+        except OSError:
+            w = 80
+        workers = worker_status_cb()
+        if not workers or w < _WORKER_PANEL_MIN_WIDTH:
+            return Dimension(min=0, preferred=0)
+        n = 1 + min(len(workers), _WORKER_PANEL_MAX)   # 标题条 + 条目行
+        if len(workers) > _WORKER_PANEL_MAX:
+            n += 1                                     # 折叠行
+        return Dimension(min=1, preferred=n, max=n)
+
     def _line_prefix(lineno, wrap_count):
         if lineno == 0 and wrap_count == 0:
             color = 'bold fg:ansiyellow' if mode_ref[0] else 'bold fg:ansiwhite'
@@ -275,6 +353,9 @@ def bordered_prompt(
 
     _body_windows = [
         Window(FormattedTextControl(_top), height=1, dont_extend_height=True),
+        # worker 进度面板：高度动态（无 worker 时为 0，不占行），仅协调者模式有内容
+        Window(FormattedTextControl(_workers_panel), height=_panel_height,
+               dont_extend_height=True),
         Window(
             BufferControl(buffer=buf),
             get_line_prefix=_line_prefix,
