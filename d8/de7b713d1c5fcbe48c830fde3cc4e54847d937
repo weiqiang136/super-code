@@ -1,0 +1,25 @@
+src/tui/prompt.py
+  s_ddc0eee4a8c85a::t_8144eaabf59717 268-271,273-309,311-328,330-331,336,338-343
+  s_ddc0eee4a8c85a::t_39380e645237c4 310
+  s_ddc0eee4a8c85a::t_14289518b6172f 356-358
+  s_ddc0eee4a8c85a::t_482297ff2bdbe1 104
+  s_ddc0eee4a8c85a::t_02476908933473 6
+  s_ddc0eee4a8c85a::t_41e5fb6cdacaab 329,332-335,337
+  s_ddc0eee4a8c85a::t_36de548c36dbb8 272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d8de7b713d1c5fcbe48c830fde3cc4e54847d937",
+  "prompts": {},
+  "sessions": {
+    "s_ddc0eee4a8c85a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "19c086bfdc8a4920a6dc7abfdfbe323f",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
