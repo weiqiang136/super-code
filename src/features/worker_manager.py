@@ -102,6 +102,21 @@ class WorkerManager:
                 if self._is_running(t)
             ]
 
+    def get_panel_status(self) -> list[dict]:
+        """返回进度面板所需的全部 worker 状态（运行中 + 已完成，按 spawn 序）。
+
+        与 get_running_status 的区别：不筛选运行态，附带 status 字段
+        （running/completed/killed/failed），供常驻面板显示完成态（✓/✗）。
+        线程安全（_lock 保护）；status 的最终写发生在 worker 线程结束处。
+        """
+        with self._lock:
+            return [
+                {"task_id": t.task_id, "description": t.description,
+                 "tool_uses": t.tool_use_count, "activity": t.current_activity,
+                 "status": "running" if self._is_running(t) else t.status}
+                for t in self._tasks.values()
+            ]
+
     def _get_task(self, task_id: str) -> WorkerTask:
         with self._lock:
             task = self._tasks.get(task_id)

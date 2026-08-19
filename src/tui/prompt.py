@@ -207,8 +207,12 @@ def bordered_prompt(
             fill = _BAR * max(0, width - 1)
             return [(color, f'{_BAR}{fill}')]
 
-        # 按显示列宽截断 + 省略号（… 宽度由 Text.truncate 自动计入），存储的完整标题不受影响
-        _title_text = Text(title)
+        # 先清洗换行符再截断：自动标题取自第一条用户消息（session.py _generate_title），
+        # 多行消息会带 \n。若 \n 带入 FormattedText，右侧 ─ 填充会被挤到第二行，
+        # 而 _top 的 Window height=1 只显示第一行 → 上边框右半"缺一块"。
+        # 注意清洗必须在 truncate 之前：Rich truncate 按列宽截断时 \n 占 0 列，
+        # 截断后再 replace 成空格会放大列宽（0→1 列/个），照样撑爆 remaining。
+        _title_text = Text(title.replace("\r\n", " ").replace("\n", " ").replace("\r", " "))
         _title_text.truncate(max_title, overflow="ellipsis")  # 原地修改，返回 None，不能链式
         display_title = _title_text.plain
         title_segment = f"{_TITLE_PREFIX}{display_title}{_TITLE_SUFFIX}"
@@ -265,80 +269,129 @@ def bordered_prompt(
         segments.append((base_color, _BAR))
         return segments
 
-    # ===== worker 进度面板（输入框上方）=====
-    # 仅当 worker_status_cb 非 None 且确有运行中 worker 时显示：标题条 + 每 worker 一行。
-    # 无 worker 时高度归 0、不占行，对现有布局零影响。数据由外部回调注入（拉取式快照）。
-    _WORKER_PANEL_MAX = 3   # 最多同时展示的 worker 行数，超出折叠为 "… and N more"
+    # ===== worker 进度面板（输入框上方，协调者模式常驻）=====
+    # 运行中 worker 全展示（彩色实时活动）；完成的保留为 ✓/✗ 状态行不消失
+    # （输入框位置稳定，不在 worker 完成时跳动）；完成行保留最近 _WORKER_DONE_MAX
+    # 个、更早的折叠；无任何 worker 时显示占位行。数据由外部回调注入（拉取式快照）。
+    _WORKER_DONE_MAX = 5       # 完成的 worker 最多保留展示的行数，更早的折叠
     _WORKER_PANEL_MIN_WIDTH = 40   # 终端列宽低于此值时不显示面板（最小内容也会溢出）
-    _WORKER_ITEM_PREFIX = "│ ⚙ "   # 条目前缀（box-drawing 竖线 + 齿轮，延续边框语言）
+    _WORKER_ITEM_PREFIX = " ⚙ "   # 条目前缀（box-drawing 竖线 + 齿轮，延续边框语言）
+    _WORKER_MORE_INDENT = "  "      # 折叠行缩进（对齐条目内容区，区别于 ⚙ 条目）
+    _WORKER_GRAY = '#888888'        # 完成态灰色（prompt_toolkit 无 dim，用灰 hex）
+    _WORKER_DONE_GREEN = '#2e8b57'  # ✓ 对勾暗绿（低调不抢视线）
 
     def _render_worker_item(wk: dict, width: int) -> list[tuple[str, str]]:
-        """单行条目：│ ⚙ 描述 · 当前活动 · N tools，三段不同颜色，按显示列宽截断。
+        """单行条目：│ ⚙ 描述 · 状态/活动 · N tools，按状态分支配色。
 
-        描述固定上限（≤24 列或 1/3 宽度），活动吃掉剩余宽度（动态信息最醒目），
-        工具数固定后缀。截断用 cell_len 计显示列宽（中文/emoji 占 2 列）。
+        running：描述 cyan、活动 yellow、工具数 green（实时动态最醒目）；
+        completed/killed/failed：✓/✗ 状态色 + 灰色描述，整行弱化。
+        宽度用 cell_len 计显示列宽（中文/emoji 占 2 列），超宽截断。
         """
         desc = (wk.get("description") or "Worker").strip()
-        act = (wk.get("activity") or "Idle").strip()
         tools = wk.get("tool_uses", 0)
         tools_str = f"{tools} tools"
         sep = " · "
         prefix_w = cell_len(_WORKER_ITEM_PREFIX)
         inner_budget = max(1, width - prefix_w)
+        status = wk.get("status", "running")
+
+        if status == "running":
+            act = (wk.get("activity") or "Idle").strip()
+            d = Text(desc)
+            d.truncate(min(24, inner_budget // 3), overflow="ellipsis")
+            d_text = d.plain
+            fixed_w = cell_len(tools_str) + cell_len(sep) * 2
+            a = Text(act)
+            a.truncate(max(4, inner_budget - cell_len(d_text) - fixed_w), overflow="ellipsis")
+            return [
+                ('fg:ansiwhite', _WORKER_ITEM_PREFIX),
+                ('fg:ansicyan', d_text + sep),
+                ('fg:ansiyellow', a.plain + sep),
+                ('fg:ansigreen', tools_str),
+            ]
+
+        # 完成态：✓/✗ + 状态词 + 工具数，整行灰色弱化
+        if status == "completed":
+            mark, mark_style, state_text = "✓", f'fg:{_WORKER_DONE_GREEN}', "已完成"
+        elif status == "killed":
+            mark, mark_style, state_text = "✗", 'fg:ansiyellow', "已停止"
+        elif status == "failed":
+            mark, mark_style, state_text = "✗", 'fg:ansired', "失败"
+        else:   # idle 等防御分支：无状态词
+            mark, mark_style, state_text = "", "", ""
+        fixed = cell_len(tools_str)
+        fixed += cell_len(sep) * 2 + cell_len(state_text) if state_text else cell_len(sep)
+        if mark:
+            fixed += cell_len(mark) + 1
         d = Text(desc)
-        d.truncate(min(24, inner_budget // 3), overflow="ellipsis")
+        d.truncate(max(4, inner_budget - fixed), overflow="ellipsis")
         d_text = d.plain
-        fixed_w = cell_len(tools_str) + cell_len(sep) * 2
-        a = Text(act)
-        a.truncate(max(4, inner_budget - cell_len(d_text) - fixed_w), overflow="ellipsis")
-        return [
-            ('fg:ansiwhite', _WORKER_ITEM_PREFIX),
-            ('fg:ansicyan', d_text + sep),
-            ('fg:ansiyellow', a.plain + sep),
-            ('fg:ansigreen', tools_str),
-        ]
+        segments: list[tuple[str, str]] = [('fg:ansiwhite', _WORKER_ITEM_PREFIX)]
+        if mark:
+            segments.append((mark_style, mark + " "))
+        segments.append((_WORKER_GRAY, d_text))
+        if state_text:
+            segments.append((_WORKER_GRAY, sep + state_text))
+        segments.append((_WORKER_GRAY, sep + tools_str))
+        return segments
 
     def _workers_panel() -> list[tuple[str, str]]:
-        """面板 text callable：无 worker（或未启用）返回空文本；否则标题条 + 条目行。"""
+        """面板 text callable：协调者模式常驻；运行中全展示、完成态保留、无任务占位。
+
+        不做标题条/边框线：上边框已有 ─ 线，再铺一条会视觉重复（用户实测反馈）。
+        条目自带 │ ⚙ 前缀 + 颜色分段，独立成行已足够区分。
+        """
         if worker_status_cb is None:
             return [("", "")]
         try:
             w = os.get_terminal_size().columns
         except OSError:
             w = 80
-        workers = worker_status_cb()
-        if not workers or w < _WORKER_PANEL_MIN_WIDTH:
+        try:
+            workers = worker_status_cb()
+        except Exception:
+            return [("", "")]   # 渲染层防御：状态回调异常不应崩掉整个 REPL
+        if w < _WORKER_PANEL_MIN_WIDTH:
             return [("", "")]
+        if not workers:
+            return [(_WORKER_GRAY, f"{_WORKER_ITEM_PREFIX}暂无任务")]
+        running = [wk for wk in workers if wk.get("status", "running") == "running"]
+        done = [wk for wk in workers if wk.get("status", "running") != "running"]
+        # 运行中全展示；完成的保留最近 _WORKER_DONE_MAX 个（spawn 序靠后 = 最近）
+        hidden = max(0, len(done) - _WORKER_DONE_MAX)
+        shown = running + (done[hidden:] if hidden else done)
         segments: list[tuple[str, str]] = []
-        # 标题条：─ [N running] ────（与底部栏 [Normal] 标签同构）
-        head = f"{_BAR} [{len(workers)} running] "
-        segments.append(('bold fg:ansiwhite',
-                         head + _BAR * max(0, w - cell_len(head)) + "\n"))
-        shown = workers[:_WORKER_PANEL_MAX]
         for i, wk in enumerate(shown):
             segments.extend(_render_worker_item(wk, w))
             if i < len(shown) - 1:
                 segments.append(("", "\n"))
-        if len(workers) > _WORKER_PANEL_MAX:
-            more = len(workers) - _WORKER_PANEL_MAX
+        if hidden:
             segments.append(("", "\n"))
-            segments.append(('fg:ansiyellow', f"  … and {more} more"))
+            segments.append(('fg:ansiyellow',
+                             f"{_WORKER_MORE_INDENT}… and {hidden} more"))
         return segments
 
     def _panel_height() -> Dimension:
-        """面板高度 callable：未启用、无 worker 或终端过窄时 0（不占行），否则按行数精确取值。"""
+        """面板高度 callable：未启用或终端过窄时 0；否则按行数取值，至少 1 行（占位）。"""
         if worker_status_cb is None:
             return Dimension(min=0, preferred=0)
         try:
             w = os.get_terminal_size().columns
         except OSError:
             w = 80
-        workers = worker_status_cb()
-        if not workers or w < _WORKER_PANEL_MIN_WIDTH:
+        try:
+            workers = worker_status_cb()
+        except Exception:
             return Dimension(min=0, preferred=0)
-        n = 1 + min(len(workers), _WORKER_PANEL_MAX)   # 标题条 + 条目行
-        if len(workers) > _WORKER_PANEL_MAX:
-            n += 1                                     # 折叠行
+        if w < _WORKER_PANEL_MIN_WIDTH:
+            return Dimension(min=0, preferred=0)
+        if not workers:
+            return Dimension(min=1, preferred=1, max=1)   # 占位行
+        n_running = sum(1 for wk in workers if wk.get("status", "running") == "running")
+        n_done = len(workers) - n_running
+        n = n_running + min(n_done, _WORKER_DONE_MAX)   # 运行中全展示 + 最近完成
+        if n_done > _WORKER_DONE_MAX:
+            n += 1                                      # 折叠行
         return Dimension(min=1, preferred=n, max=n)
 
     def _line_prefix(lineno, wrap_count):
@@ -352,10 +405,11 @@ def bordered_prompt(
     _spacer_height = max(0, _MENU_MAX - _distance) if _distance < _MENU_MAX else 0
 
     _body_windows = [
-        Window(FormattedTextControl(_top), height=1, dont_extend_height=True),
-        # worker 进度面板：高度动态（无 worker 时为 0，不占行），仅协调者模式有内容
+        # worker 进度面板：置于整个输入组件最顶部（上边框之外），
+        # 与输入区之间由现有上边框线自然分隔，独立区块感更强
         Window(FormattedTextControl(_workers_panel), height=_panel_height,
                dont_extend_height=True),
+        Window(FormattedTextControl(_top), height=1, dont_extend_height=True),
         Window(
             BufferControl(buffer=buf),
             get_line_prefix=_line_prefix,

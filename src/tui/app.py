@@ -436,7 +436,11 @@ def main() -> None:
                                          completer=slash_completer, mode_ref=mode_ref,
                                          on_mode_toggle=_toggle_plan_mode,
                                          session_title=cmd_ctx.session_store._title,
-                                         ctx_usage=ctx_usage)
+                                         ctx_usage=ctx_usage,
+                                         # worker 进度面板：仅协调者模式启用
+                                         # （get_panel_status 是线程安全快照，含完成态；普通模式传 None 零影响）
+                                         worker_status_cb=worker_manager.get_panel_status
+                                         if is_coordinator_mode() else None)
             if user_input is None:
                 user_input = ""
             user_input = user_input.strip()
