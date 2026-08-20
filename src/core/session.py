@@ -18,6 +18,11 @@ from typing import Any
 
 _SESSIONS_ROOT = Path.home() / ".config" / "super-code" / "sessions"
 
+# 记忆注入 / skill 注入会把 <system-reminder>...</system-reminder> 前缀拼进第一条
+# user 消息。贪婪匹配到最后一个闭合标签：前缀内部可能嵌套 freshness 的小块
+# system-reminder，非贪婪会提前停在内层闭合标签处，残留文本污染标题。
+_SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*</system-reminder>\s*", re.DOTALL)
+
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -105,6 +110,9 @@ def _extract_text(content: Any) -> str:         # 尽力提取消息内容中的
 def _generate_title(content: Any) -> str:       # 根据第一条用户消息创建会话标题
     """Create a short title from the first user message."""
     text = _extract_text(content).strip()
+    # 剥离注入层：标题应取自用户真实输入，而不是记忆检索 / skill 的
+    # <system-reminder> 前缀（该前缀由 app.py 拼在 user_input 前面一起落盘）
+    text = _SYSTEM_REMINDER_RE.sub("", text, count=1)
     if not text:
         return "(untitled)"
     if len(text) <= 80:
