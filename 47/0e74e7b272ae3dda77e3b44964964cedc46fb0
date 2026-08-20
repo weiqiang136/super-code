@@ -1,0 +1,21 @@
+src/core/engine.py
+  s_d6279012512a6a::t_015b8f86831442 333,335-337
+src/tui/query.py
+  s_d6279012512a6a::t_55ffaadfc8be49 53-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "470e74e7b272ae3dda77e3b44964964cedc46fb0",
+  "prompts": {},
+  "sessions": {
+    "s_d6279012512a6a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "8e2999dc4251426990645f24d5c4c3b9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
