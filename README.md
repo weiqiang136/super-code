@@ -5,10 +5,7 @@
 ## 简介
 
 super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接口接入大模型，让你在命令行里直接完成代码阅读、编写、重构、调试等任务，无需离开终端环境。
-
-<img width="1734" height="927" alt="动画02" src="https://github.com/user-attachments/assets/7323eab5-cc37-472a-bd8d-a561d0903928" />
-
-
+<img width="2537" height="1502" alt="动画03" src="https://github.com/user-attachments/assets/2ab7187c-33c5-4b4c-8011-c14f4bfb19d3" />
 
 ## 特性
 
