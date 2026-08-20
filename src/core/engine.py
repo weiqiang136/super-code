@@ -9,7 +9,7 @@ from core.tool import Tool, ToolResult
 from core.permissions import PermissionChecker
 from features.compact import (estimate_tokens, get_context_window,
                                prune_tool_results, PRUNE_RECENT_THRESHOLD_CHARS,
-                               PRUNE_THRESHOLD_CHARS)
+                               PRUNE_THRESHOLD_CHARS, reclaim_stale_read_results)
 
 
 # Windows 终端粘贴 UTF-16 剪贴板时可能把代理对当成两个独立码点喂进 stdin，
@@ -320,10 +320,25 @@ class Engine:
                 tool_uses = []
                 tools_schema = [t.to_api_schema() for t in self._tools.values()] if self._tools else None
 
+                # ── 过期 Read 结果回收（发送副本，不污染 _messages）──
+                # 文件被后续 Edit/Write 修改过的旧 Read tool_result 对模型已无用（旧版本），
+                # 替换为短标记（保留 snippet 定位信息）。省 token 且避免模型基于旧版本思考。
+                # 只作用于发送副本：_messages 与磁盘 JSONL 保留原始完整内容，/resume 可重放。
+                # fail-closed：无 session_id 或内部查询异常 → 原样发送。
+                _send_messages = self._messages
+                _reclaim_sid = self._agent_session_id_override or (
+                    self._session_store.session_id if self._session_store else "")
+                if _reclaim_sid:
+                    try:
+                        _send_messages, _ = reclaim_stale_read_results(
+                            self._messages, _reclaim_sid)
+                    except Exception:
+                        _send_messages = self._messages  # 回收失败不影响主流程
+
                 with self._client.stream(
                     model=self._model,
                     system_prompt=self._system_prompt,
-                    messages=self._messages,
+                    messages=_send_messages,
                     tools=tools_schema,
                     max_tokens=self._max_tokens,
                 ) as stream:

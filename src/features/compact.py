@@ -481,6 +481,96 @@ def prune_tool_results(messages: list[dict],
 
 
 # ---------------------------------------------------------------------------
+# 过期 Read 结果回收（stale reclamation）
+# ---------------------------------------------------------------------------
+# 与剪枝（长度维度）不同，这里是"时效维度"的确定性回收：Read 工具的结果若
+# 对应的文件在会话中被后续 Edit/Write 修改过（file_state 版本号已升高），
+# 则旧版本内容对模型已无用（还可能误导它基于旧代码思考），替换为短标记文本。
+# 判定完全基于 file_state 的版本号，不涉及语义猜测 → 零误伤。
+
+STALE_READ_MARKER = (
+    "[此文件已被后续编辑修改，以上内容为旧版本。"
+    "需要最新内容时请用 Read 工具重新读取该文件，或使用 offset/limit 读取指定行区间]"
+)
+
+
+def reclaim_stale_read_results(messages: list[dict], session_id: str) -> tuple[list[dict], dict]:
+    """回收"文件已被后续编辑修改"的过期 Read tool_result，返回 (新消息列表, 统计)。
+
+    只处理 user 消息 content 中 type == "tool_result" 且 metadata 带 snippet_id
+    的 block（即 Read 工具的产物，见 tools/file_read.py 的 snippet_meta）。
+    判定条件：file_state 中该文件的当前 version > snippet 创建时的 file_version
+    （文件被 Edit/Write 修改过）→ 该 block 的 content 替换为短标记文本。
+
+    保留项（配对/结构安全）：
+      - block 的 type / tool_use_id / is_error / metadata 字段原样保留
+      - 消息条数、角色交替、tool_use ↔ tool_result 配对全部不变
+      - 标记文本内含 snippet_id + 行范围，模型需要时可重新 Read / offset-limit 读取
+    不污染输入：重建 block（浅拷贝 + 替换 content），不修改调用方的原始消息。
+
+    fail-closed：无 metadata / 查不到 snippet / 版本不匹配异常 → 一律不回收。
+    统计：{"reclaimed": 回收几条, "chars_removed": 共省多少字符}。
+    """
+    from core.file_state import get_file_version, get_snippet
+
+    reclaimed_count = 0
+    chars_removed = 0
+    out: list[dict] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        # 快速跳过：不含 tool_result block 的消息原样保留
+        if not (isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )):
+            out.append(msg)
+            continue
+        new_blocks: list[Any] = []
+        changed = False
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                new_blocks.append(block)      # 非 tool_result block 原样保留
+                continue
+            meta = block.get("metadata")
+            snippet_id = None
+            if isinstance(meta, dict):
+                snippet_id = meta.get("snippet_id")
+            if not snippet_id:
+                new_blocks.append(block)      # 无 snippet 凭证（Bash/Grep 等）→ 不回收
+                continue
+            snippet = get_snippet(session_id, snippet_id)
+            if snippet is None:
+                new_blocks.append(block)      # 查不到（/resume 未重建等）→ fail-closed
+                continue
+            if get_file_version(session_id, snippet.file_path) <= snippet.file_version:
+                new_blocks.append(block)      # 文件未被修改 → 内容仍有效，保留
+                continue
+            # 文件已被后续编辑：替换 content 为短标记（保留定位信息）
+            text = block.get("content", "")
+            if isinstance(text, str):
+                chars_removed += len(text)
+            start = meta.get("start_line") or snippet.start_line
+            end = meta.get("end_line") or snippet.end_line
+            scope = meta.get("scope_type") or snippet.scope_type
+            marker = (
+                f"[snippet_id: {snippet_id} | lines: {start}-{end} | scope: {scope}]\n"
+                + STALE_READ_MARKER
+            )
+            new_block = dict(block)
+            new_block["content"] = marker
+            new_blocks.append(new_block)
+            changed = True
+            reclaimed_count += 1
+        if changed:
+            new_msg = dict(msg)
+            new_msg["content"] = new_blocks
+            out.append(new_msg)
+        else:
+            out.append(msg)
+    stats = {"reclaimed": reclaimed_count, "chars_removed": chars_removed}
+    return out, stats
+
+
+# ---------------------------------------------------------------------------
 # CompactService
 # ---------------------------------------------------------------------------
 
