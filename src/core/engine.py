@@ -330,8 +330,11 @@ class Engine:
                     self._session_store.session_id if self._session_store else "")
                 if _reclaim_sid:
                     try:
-                        _send_messages, _ = reclaim_stale_read_results(
+                        _send_messages, _reclaim_stats = reclaim_stale_read_results(
                             self._messages, _reclaim_sid)
+                        if _reclaim_stats["reclaimed"] > 0:
+                            # 有实际回收 → yield 事件让 UI 显示一行话术（用户可感知）
+                            yield ("stale_reclaim", _reclaim_stats)
                     except Exception:
                         _send_messages = self._messages  # 回收失败不影响主流程
 

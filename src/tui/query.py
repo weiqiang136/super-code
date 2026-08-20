@@ -50,6 +50,19 @@ def run_query(engine: Engine, user_input: str, print_mode: bool,
                         md_stream.flush()
                         spinner.start("Compacting context…", SPINNER_COMPACT)
 
+                elif event[0] == "stale_reclaim":
+                    # 过期 Read 结果回收：发送前替换掉已被后续编辑的旧版本内容
+                    if not quiet:
+                        md_stream.flush()
+                        stats = event[1]
+                        n = stats.get("reclaimed", 0)
+                        chars = stats.get("chars_removed", 0)
+                        console.print(
+                            f"[dim]Reclaimed {n} stale read result(s) "
+                            f"(−{chars:,} chars)[/dim]"
+                        )
+                        spinner.start("Thinking…", SPINNER_THINKING)
+
                 elif event[0] == "notification":
                     # worker 完成通知：engine 在 mid-turn 注入了通知到对话中
                     if not quiet:
