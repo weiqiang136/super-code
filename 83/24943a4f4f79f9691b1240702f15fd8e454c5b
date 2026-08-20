@@ -1,0 +1,20 @@
+src/core/session.py
+  s_cfa5ca955b770f::t_06ecd5621f5d96 21-25
+  s_cfa5ca955b770f::t_c0f1576a139cb6 113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8324943a4f4f79f9691b1240702f15fd8e454c5b",
+  "prompts": {},
+  "sessions": {
+    "s_cfa5ca955b770f": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "bd92a3e4d0c44052b2323dc56db3eaf2",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
