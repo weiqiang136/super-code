@@ -7,6 +7,7 @@ from typing import Callable
 
 from prompt_toolkit.application import Application as PTApp
 from prompt_toolkit.application.current import get_app
+from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
@@ -91,6 +92,17 @@ class SlashCommandCompleter(Completer):
 
 
 slash_completer = SlashCommandCompleter()
+
+
+# 命令补全面板（输入 / 时弹出）配色：深青暗色系，替代 prompt_toolkit 默认灰底
+_MENU_STYLE = Style.from_dict({
+    "completion-menu": "bg:#123a3a",                                        # 面板背景
+    "completion-menu.completion": "bg:#1c4d4d",                             # 未选中条目
+    "completion-menu.completion.current": "bg:#14b8a6 fg:#000000",          # 选中项亮青底黑字
+    "completion-menu.meta": "bg:#123a3a",                                   # 描述区背景
+    "completion-menu.meta.completion": "bg:#1c4d4d",
+    "completion-menu.meta.completion.current": "bg:#14b8a6 fg:#000000",
+})
 
 
 def bordered_prompt(
@@ -492,6 +504,7 @@ def bordered_prompt(
         layout=Layout(root),
         key_bindings=kb,
         full_screen=False,
+        style=_MENU_STYLE,  # 命令补全面板（输入 / 时弹出）用深青色，替换默认灰底
         refresh_interval=1.0 if worker_status_cb is not None else None,
     )
     app.layout.focus(buf)
