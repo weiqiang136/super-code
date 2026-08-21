@@ -53,7 +53,11 @@ class AppConfig:
     # Step 6 性能优化：记忆相关性 selector 用的小模型（如 gpt-4o-mini / haiku）。
     # 空字符串 / None → 回退到 model 字段。仅影响 find_relevant_memories.build_relevant_memories_prefix
     # 这一处侧查询；主对话仍用 model。
-    extract_model: str = ""
+    # 支持两种形态：
+    #   str  → 模型名，复用主对话 client（老行为，仅换模型名）
+    #   dict → 可选字段 {model, base_url, api_key, timeout, extra_body}，省略即回退主对话值；
+    #          extra_body 提供时优先于 model_profiles 按名匹配（同名模型可单独控制推理强度）
+    extract_model: str | dict[str, Any] = ""
     # 协调者模式开关。CLI --coordinator 优先；其次读配置文件 coordinator 字段；
     # 默认 False（此时 features/coordinator.py 仍会从 SUPER_CODE_COORDINATOR env 兜底，
     # 保持向后兼容）。
@@ -143,7 +147,13 @@ def load_app_config(args: Namespace) -> AppConfig:
 
     # 8️⃣ extract_model（Step 6 性能优化用的小模型）
     # 仅支持从配置文件读取——CLI 暂不暴露，避免参数膨胀。空字符串 / 缺省视作未配置。
-    extract_model = str(file_cfg.get("extract_model") or "").strip()
+    # 支持 str（模型名，复用主 client）或 dict（可换服务商/单独控制 extra_body，
+    # 字段全可选，省略即回退主对话值，见 AppConfig.extract_model 注释）。
+    _raw_extract = file_cfg.get("extract_model")
+    if isinstance(_raw_extract, dict):
+        extract_model: str | dict[str, Any] = dict(_raw_extract)
+    else:
+        extract_model = str(_raw_extract or "").strip()
 
     # 9️⃣ coordinator 模式开关：CLI > 文件 > False（env 兜底由 coordinator.py 自己处理）
     coordinator = bool(

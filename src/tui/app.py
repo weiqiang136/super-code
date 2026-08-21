@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
@@ -17,6 +18,7 @@ from commands import CommandContext, handle_command, is_known_command, parse_com
 from core.config import load_app_config
 from core.context import build_system_prompt
 from core.engine import Engine
+from core.llm import LLMClient
 from core.permissions import PermissionChecker
 from core.session import SessionStore
 from features.compact import CompactService, get_context_window, should_compact
@@ -63,6 +65,34 @@ def _fmt_tokens(n: int) -> str:
     return f"{round(n / 1024)}K"
 
 
+def _build_selector_client(app_config) -> tuple[Any, str]:
+    """构建记忆 selector 的 LLMClient 与模型名。
+
+    extract_model 两种形态：
+        str  → 复用主对话 client（engine._client），仅换模型名 —— 老行为，零差异。
+        dict → 独立构建 client：可选字段 {model, base_url, api_key, timeout, extra_body}，
+               省略即回退主对话值；extra_body 提供时合进 model_profiles 的精确 key——
+               _lookup_extra_body 按 key 长度降序匹配，精确模型名最长必然先命中，
+               从而覆盖外层 profile（主模型与 extract 同名时也能单独控制推理强度）。
+    """
+    extract_cfg = app_config.extract_model
+    if not isinstance(extract_cfg, dict):
+        return None, extract_cfg or app_config.model
+    selector_model = extract_cfg.get("model") or app_config.model
+    selector_profiles = dict(app_config.model_profiles)
+    extract_extra_body = extract_cfg.get("extra_body")
+    if extract_extra_body:
+        selector_profiles[selector_model] = {"extra_body": extract_extra_body}
+    client = LLMClient(
+        provider=app_config.provider,
+        api_key=extract_cfg.get("api_key") or app_config.api_key,
+        base_url=extract_cfg.get("base_url") or app_config.base_url,
+        timeout=float(extract_cfg.get("timeout") or app_config.timeout),
+        model_profiles=selector_profiles,
+    )
+    return client, selector_model
+
+
 def _print_banner(app_config, cwd: str, session_id: str) -> None:
     """打印启动横幅：Panel 包裹，左侧紫色 ASCII logo，右侧模型信息。
 
@@ -81,7 +111,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.2.0", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.2.8", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -302,6 +332,12 @@ def main() -> None:
     compact_service = CompactService(client=engine._client, model=app_config.model,
                                      cost_tracker=cost_tracker)
     engine.set_compact_service(compact_service)  # 注入 engine 供轮内紧急压缩使用
+
+    # 记忆 selector client：extract_model 为 dict 时独立构建（可换服务商 / 单独控制
+    # 推理强度，字段省略即回退主对话值）；字符串 / 未配置时返回 None，复用主 client。
+    selector_client, selector_model = _build_selector_client(app_config)
+    if selector_client is None:
+        selector_client = engine._client
 
     # 注入 worker 通知回调：engine 在每轮工具执行完成后 drain 通知队列，
     # 将已完成 worker 的结果注入 conversation，coordinator 在同一 turn 内自动感知。
@@ -534,16 +570,16 @@ def main() -> None:
         if not plan_manager.is_active:
             try:
                 from features.find_relevant_memories import build_relevant_memories_prefix, will_need_side_query
-                # extract_model 是 Step 6 性能优化：用更便宜的小模型跑 selector；
-                # 未配置（空串）则回退到主模型，行为与早期版本一致
-                selector_model = app_config.extract_model or app_config.model
+                # selector_client / selector_model 在启动时构建：
+                #   extract_model 为 dict → 独立 client（可换服务商 / 单独控制推理强度）
+                #   字符串 / 未配置 → 复用主 client，仅换模型名（老行为）
                 _needs_llm = will_need_side_query(user_input, memory_dir)
                 if _needs_llm:
                     _mem_spinner = SpinnerManager(console)
                     _mem_spinner.start("Searching memories…", SPINNER_MEMORY)
                 try:
                     memory_prefix = build_relevant_memories_prefix(
-                        user_input, memory_dir, engine._client, selector_model,
+                        user_input, memory_dir, selector_client, selector_model,
                     )
                 finally:
                     if _needs_llm:
