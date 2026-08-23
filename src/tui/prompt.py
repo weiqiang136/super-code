@@ -183,6 +183,38 @@ class SlashCommandCompleter(Completer):
 slash_completer = SlashCommandCompleter()
 
 
+def _is_completion_apply(current: str) -> bool:
+    """检测文本变化是否来自补全应用（方向键选择 / 命令），而非用户粘贴/打字。
+
+    注意：**不能依赖 buf.complete_state**。pt 3.0.52 中方向键走
+    complete_next → go_to_completion → set_document → _text_changed()，
+    _text_changed 会先把 complete_state 置 None，再 fire on_text_changed，
+    回调返回后才恢复——回调时 complete_state 恒为 None，时序上拿不到。
+    改用「文本恰为完整斜杠命令名」判定：apply_completion 后 current 就是
+    某个补全项文本；手动逐字敲命令时 inserted 是单字符，本来就走不到
+    len(inserted)>=2 的剪贴板探测分支，两者不冲突。
+
+    若走 "疑似粘贴 → 剪贴板位图探测" 路径，每次按键都会 spawn 一个 PowerShell
+    进程（约 300-800ms），表现为按下方向键要等一会儿才跳到下一条命令。
+    返回 True 表示应跳过粘贴/剪贴板探测。
+    """
+    if not current.startswith('/'):
+        return False
+    query = current[1:].lower()
+    from commands import _COMMAND_TABLE
+    for name, _, _ in _COMMAND_TABLE:
+        if name == query:
+            return True
+    try:
+        from features.skills import list_skills
+        for skill in list_skills(user_invocable_only=True):
+            if skill.name == query:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 # 命令补全面板（输入 / 时弹出）配色：深青暗色系，替代 prompt_toolkit 默认灰底
 _MENU_STYLE = Style.from_dict({
     "completion-menu": "bg:#123a3a",                                        # 面板背景
@@ -251,6 +283,17 @@ def bordered_prompt(
         nonlocal _last_text, _paste_counter
 
         current = _buf.text
+
+        # --- 补全应用检测（方向键选择 / 命令）---
+        # apply_completion 会把输入框文本替换为菜单中的某个补全项（如 "/" → "/memory"）。
+        # 这种变化同样触发本回调；若走下方 "疑似粘贴 → 剪贴板位图探测"（len(inserted)>=2），
+        # 每次按键都会 spawn 一个 PowerShell 进程（约 300-800ms），表现为
+        # "按下方向键要等一会儿才跳到下一条命令"（单字符打字不探测，正好绕过）。
+        # 文本恰为完整斜杠命令 → 跳过粘贴/剪贴板探测 + 跳过末尾 start_completion 重算
+        # （菜单已在列表上，方向键移动不需要重建补全列表）。
+        if _is_completion_apply(current):
+            _last_text = current
+            return
 
         # --- 粘贴检测：通过 diff 找到本次插入的文本 ---
         if current != _last_text and len(current) > len(_last_text):

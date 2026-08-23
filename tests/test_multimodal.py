@@ -308,3 +308,44 @@ def test_serialize_content_image_message_roundtrip():
     assert safe[1] == {"type": "image", "source": {"media_type": "image/png", "data": "QUJD"}}
     # 标题抽取：图片 block 无 text → _extract_text join 后带尾空格
     assert _extract_text(safe) == "看图 "
+
+
+# ── 补全应用检测（方向键选择 / 命令，跳过剪贴板探测）──────
+# 注意：不能依赖 buf.complete_state——pt 3.0.52 的 _text_changed() 在 fire
+# on_text_changed 前先把它置 None，回调时恒为 None。判定基于文本。
+# 新增 2 个临时命令注册进 _COMMAND_TABLE，确保测试不受安装环境 skills 影响。
+
+def test_is_completion_apply_true_for_selected_command():
+    """方向键应用补全（/ → /memory）：文本恰为完整斜杠命令 → 跳过粘贴探测。"""
+    from tui.prompt import _is_completion_apply
+    assert _is_completion_apply("/memory") is True
+
+
+def test_is_completion_apply_false_for_typing_prefix():
+    """手动打字半截（/memor）≠ 完整命令 → 不豁免（继续粘贴探测+过滤重算）。"""
+    from tui.prompt import _is_completion_apply
+    assert _is_completion_apply("/memor") is False
+
+
+def test_is_completion_apply_false_for_unknown_command():
+    """未知命令名（/not_a_real_command）→ 不豁免（保留粘贴探测能力）。"""
+    from tui.prompt import _is_completion_apply
+    assert _is_completion_apply("/not_a_real_command") is False
+
+
+def test_is_completion_apply_false_for_non_slash():
+    """文本不以 / 开头（如粘贴图片路径 C:/img.png）→ 不豁免。"""
+    from tui.prompt import _is_completion_apply
+    assert _is_completion_apply("C:/img.png") is False
+
+
+def test_is_completion_apply_works_even_when_state_gone():
+    """模拟真实时序：回调时 complete_state 已被 pt 置 None —— 判定不依赖它，
+    文本恰为命令仍应判定为补全应用（这才是方向键能跳的原因）。"""
+    from prompt_toolkit.buffer import Buffer
+    from tui.prompt import _is_completion_apply
+    buf = Buffer()
+    # go_to_completion 的真实时序：回调时 complete_state 已被清空
+    assert buf.complete_state is None
+    from tui.prompt import _is_completion_apply
+    assert _is_completion_apply("/memory") is True
