@@ -1,0 +1,27 @@
+src/tui/clipboard_image.py
+  s_4f9fe51e040e92::t_b75afd02e061ad 1-42
+src/tui/prompt.py
+  s_4f9fe51e040e92::t_0557bed98f2cb5 51-62,82-104
+  s_4f9fe51e040e92::t_aaed92296714d6 280-295
+  s_4f9fe51e040e92::t_344d7b655c2ec4 607,613-614
+tests/test_multimodal.py
+  s_4f9fe51e040e92::t_607ebe0ec831eb 113-150,152-170
+  s_4f9fe51e040e92::t_3437e281d1ba37 151
+  s_4f9fe51e040e92::t_5ea4151c587942 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c3c0ef6260b93b1f74fb73a826a92bd6de98af61",
+  "prompts": {},
+  "sessions": {
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
