@@ -20,6 +20,7 @@ from core.config import load_app_config
 from core.context import build_system_prompt
 from core.engine import Engine
 from core.llm import LLMClient
+from core.model_capabilities import supports_vision
 from core.permissions import PermissionChecker
 from core.session import SessionStore
 from features.compact import CompactService, get_context_window, should_compact
@@ -638,6 +639,16 @@ def main() -> None:
         try:
             # 多模态：有图片附件 → 组装 [text, image] 混合 content；无图 → 原样 str（零回归）
             user_content = _assemble_image_content(memory_prefix, user_input, images_ref)
+            # 发送前拦截（P2）：含图且能力表判定主模型不支持视觉 → 不 submit、不污染会话
+            if isinstance(user_content, list) and any(
+                    isinstance(b, dict) and b.get("type") == "image" for b in user_content):
+                cap = supports_vision(cmd_ctx.model)
+                if cap is False:
+                    console.print(
+                        f"\n[red]当前模型 {cmd_ctx.model} 不支持图片输入。"
+                        f"请更换支持视觉的主模型（如 deepseek-v4-flash-vision-exp）。[/red]"
+                    )
+                    continue   # 未入 engine._messages / JSONL，无脏状态，直接等下一轮输入
             run_query(engine, user_content, print_mode=False, permissions=permissions)
         except KeyboardInterrupt:
             engine.cancel_turn()

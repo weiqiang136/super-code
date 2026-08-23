@@ -277,16 +277,101 @@ def _text_of(content: Any) -> str:
 # 低估的 bug —— 中文重的会话不会因为估算偏小永远到不了阈值。
 _CJK_RE = re.compile(r"[一-鿿぀-ヿ가-힯豈-﫿]")
 
+# 多模态：OpenAI 高细节图片 token 公式（Aider 同款，models.py:672-701）
+_IMG_TOKEN_TILE = 170            # 每 512×512 tile
+_IMG_TOKEN_FIXED = 85            # 固定开销
+_IMG_TOKEN_FALLBACK = 1100       # 尺寸解析失败兜底（近似 512×512 高细节）
+
+
+def _cjk_token_count(text: str) -> int:
+    if not text:
+        return 0
+    cjk = len(_CJK_RE.findall(text))
+    return cjk + (len(text) - cjk) // CHARS_PER_TOKEN
+
+
+def _estimate_image_tokens(block: dict) -> int:
+    """按 OpenAI 高细节公式估算图片 token：tiles × 170 + 85。
+
+    尺寸来源：零依赖解析 PNG IHDR / JPEG SOF（不引 Pillow）；解析失败走固定兜底。
+    """
+    source = block.get("source", {}) or {}
+    data = source.get("data", "")
+    if not isinstance(data, str) or not data:
+        return _IMG_TOKEN_FALLBACK
+    try:
+        import base64 as _b64
+        raw = _b64.b64decode(data[:8192])   # 只解码前 8KB 足够拿到头部尺寸
+    except Exception:
+        return _IMG_TOKEN_FALLBACK
+    dims = _image_size_from_bytes(raw)
+    if dims is None:
+        return _IMG_TOKEN_FALLBACK
+    width, height = dims
+    # ① 超 2048 缩放 ② 短边缩到 768（与 Aider 一致）
+    max_dim = max(width, height)
+    if max_dim > 2048:
+        scale = 2048 / max_dim
+        width, height = int(width * scale), int(height * scale)
+    min_dim = min(width, height)
+    if min_dim > 0:
+        scale = 768 / min_dim
+        width, height = int(width * scale), int(height * scale)
+    import math
+    tiles = math.ceil(width / 512) * math.ceil(height / 512)
+    return tiles * _IMG_TOKEN_TILE + _IMG_TOKEN_FIXED
+
+
+def _image_size_from_bytes(data: bytes) -> tuple[int, int] | None:
+    """零依赖解析图片尺寸：PNG 读 IHDR、JPEG 扫 SOF 段。失败返回 None。"""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        import struct
+        w, h = struct.unpack(">II", data[16:24])
+        return w, h
+    if data[:2] == b"\xff\xd8":   # JPEG
+        import struct
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3):   # SOF0/1/2/3
+                h, w = struct.unpack(">HH", data[i + 5:i + 9])
+                return w, h
+            if marker in (0xD9, 0xDA):   # EOI / SOS：SOF 已过或缺失
+                break
+            seg_len = struct.unpack(">H", data[i + 2:i + 4])[0]
+            if seg_len < 2:
+                break
+            i += 2 + seg_len
+    return None
+
 
 def estimate_tokens(messages: list[dict]) -> int:
-    """粗略估算 token 数：CJK 字符按 1:1，其它字符按 1:CHARS_PER_TOKEN。"""
+    """粗略估算 token 数：CJK 字符按 1:1，其它字符按 1:CHARS_PER_TOKEN。
+
+    多模态：message content 为 block 列表时逐 block 计——text 走 CJK 规则、
+    image 按 OpenAI 高细节公式（缺失此项会漏算图片 token、压缩触发偏晚）。
+    """
     total = 0
     for m in messages:
-        text = _text_of(m.get("content", ""))
-        if not text:
-            continue
-        cjk = len(_CJK_RE.findall(text))
-        total += cjk + (len(text) - cjk) // CHARS_PER_TOKEN
+        content = m.get("content", "")
+        if isinstance(content, str):
+            total += _cjk_token_count(content)
+        elif isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type")
+                if btype == "text":
+                    total += _cjk_token_count(block.get("text", ""))
+                elif btype == "image":
+                    total += _estimate_image_tokens(block)
+                elif btype == "tool_result":
+                    total += _cjk_token_count(_text_of(block.get("content", "")))
+                else:
+                    total += _cjk_token_count(_text_of(block))
     return total
 
 

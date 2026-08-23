@@ -168,3 +168,88 @@ def test_get_clipboard_image_exc(monkeypatch):
         raise OSError("no powershell")
     monkeypatch.setattr("subprocess.run", boom)
     assert clipboard_image.get_clipboard_image() is None
+
+
+# ── P2 能力表 ────────────────────────────────────────────
+
+def test_supports_vision_known():
+    from core.model_capabilities import supports_vision
+    assert supports_vision("deepseek-v4-flash-vision-exp") is True
+    assert supports_vision("GPT-4O") is True
+    assert supports_vision("glm-4.5v") is True
+    assert supports_vision("claude-3-5-sonnet") is True
+    assert supports_vision("qwen2.5-vl-72b") is True
+
+
+def test_supports_vision_not_supported():
+    from core.model_capabilities import supports_vision
+    assert supports_vision("gpt-3.5-turbo") is False
+    assert supports_vision("deepseek-chat") is False
+
+
+def test_supports_vision_unknown_returns_none():
+    from core.model_capabilities import supports_vision
+    assert supports_vision("some-brand-new-model-x") is None
+    assert supports_vision("") is None
+
+
+# ── P2 图片 token 估算（Aider 公式 tiles×170+85）─────────
+
+def _fake_png(w: int, h: int) -> str:
+    import base64
+    import struct
+    raw = (b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\x0d" + b"IHDR"
+           + struct.pack(">II", w, h) + b"\x00" * 12)
+    return base64.b64encode(raw).decode()
+
+
+def _image_block(data_b64: str, media_type: str = "image/png") -> dict:
+    return {"type": "image", "source": {"media_type": media_type, "data": data_b64}}
+
+
+def test_estimate_image_tokens_512():
+    """512² 短边缩到 768 → tiles=2×2=4 → 4×170+85（Aider 公式本义）。"""
+    from features.compact import _estimate_image_tokens
+    assert _estimate_image_tokens(_image_block(_fake_png(512, 512))) == 4 * 170 + 85
+
+
+def test_estimate_image_tokens_1024x2048_scales():
+    """1024×2048：短边缩放 1024→768 后 tiles=2×3=6 → 6×170+85。"""
+    from features.compact import _estimate_image_tokens
+    block = _image_block(_fake_png(1024, 2048))
+    assert _estimate_image_tokens(block) == 6 * 170 + 85
+
+
+def test_estimate_image_tokens_malformed_fallback():
+    from features.compact import _estimate_image_tokens
+    # 无法解析尺寸（乱数据）→ 固定兜底 1100
+    assert _estimate_image_tokens(_image_block("aGVsbG8=")) == 1100
+
+
+def test_estimate_tokens_counts_image_blocks():
+    from features.compact import estimate_tokens
+    msg = {"role": "user", "content": [
+        {"type": "text", "text": "看图 "},
+        _image_block(_fake_png(512, 512)),
+    ]}
+    # 估算 = 文本(CJK "看图"2 + 空格 1//4) + 图片 4×170+85
+    total = estimate_tokens([msg])
+    assert total == 2 + 4 * 170 + 85
+
+
+def test_estimate_tokens_plain_text_unchanged():
+    """纯文本路径行为与旧实现一致（str 消息 CJK 估算）。"""
+    from features.compact import estimate_tokens, CHARS_PER_TOKEN
+    msg = {"role": "user", "content": "你好 world"}
+    assert estimate_tokens([msg]) == 2 + len(" world") // CHARS_PER_TOKEN
+
+
+def test_image_size_from_bytes_png_jpeg():
+    import base64
+    import struct
+    from features.compact import _image_size_from_bytes
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 4 + b"IHDR" + struct.pack(">II", 1920, 1080) + b"\x00" * 12
+    assert _image_size_from_bytes(png) == (1920, 1080)
+    jpeg = (b"\xff\xd8" + b"\xff\xc0" + struct.pack(">H", 11) + b"\x08"
+            + struct.pack(">HH", 480, 320) + b"\x01\x01\x11\x00")
+    assert _image_size_from_bytes(jpeg) == (320, 480)
