@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import re
 import sys
 import threading
 import time
@@ -47,6 +48,11 @@ console = Console()
 
 _DOUBLE_PRESS_TIMEOUT = 0.8
 
+# ===== 多模态图片组装（P0）=====
+_IMAGE_PLACEHOLDER_RE = re.compile(r"\[🖼 (\d+): ([^\]]+)\]")
+
+
+
 _LOGO_LINES = [
     r"███████╗██╗   ██╗██████╗ ███████╗██████╗",
     r"██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗",
@@ -55,6 +61,41 @@ _LOGO_LINES = [
     r"███████║╚██████╔╝██║     ███████╗██║  ██║",
     r"╚══════╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝",
 ]
+
+def _assemble_image_content(prefix: str, text: str, images: list[dict]) -> str | list[dict]:
+    """把记忆前缀 + 用户文本 + 图片附件组装为内部消息 content。
+        把"输入框里看到的文字+占位符"翻译成"模型能看的文字+图片消息"
+    无图片 → 返回 str（与现状 memory_prefix + user_input 完全一致，纯文本零回归）；
+    有图片 → 按占位符出现位置切分 text/image blocks，占位符对应 images[idx]。
+    """
+    if not images:
+        return prefix + text
+    full = prefix + text
+    blocks: list[dict] = []
+    pos = 0
+    matched = 0
+    for m in _IMAGE_PLACEHOLDER_RE.finditer(full):
+        seg = full[pos:m.start()].strip()
+        if seg:
+            blocks.append({"type": "text", "text": seg})
+        idx = int(m.group(1))
+        if 0 <= idx < len(images):
+            src = images[idx]
+            blocks.append({"type": "image", "source": {
+                "media_type": src["media_type"], "data": src["data"]}})
+            matched += 1
+        pos = m.end()
+    if pos < len(full):
+        seg = full[pos:].strip()
+        if seg:
+            blocks.append({"type": "text", "text": seg})
+    # 防御：占位符一个都没匹配上（如用户删除了占位符但 images_ref 残留）
+    # → 只发文本，不发图（静默丢弃残留图，避免发错内容）
+    if matched == 0:
+        return full
+    if not blocks:
+        blocks.append({"type": "text", "text": ""})
+    return blocks
 
 
 def _fmt_tokens(n: int) -> str:
@@ -468,11 +509,14 @@ def main() -> None:
             # 除以模型 context window。0 = 尚未调用 API，显示层会隐藏。
             ctx_usage = [cmd_ctx.cost_tracker.last_input_tokens if cmd_ctx.cost_tracker else 0,
                          get_context_window(cmd_ctx.model)]
+            # 图片附件收集（P0 多模态）：bordered_prompt 内拖拽图片时按序 append 到这里
+            images_ref: list[dict] = []
             user_input = bordered_prompt(console, history=pt_history,
                                          completer=slash_completer, mode_ref=mode_ref,
                                          on_mode_toggle=_toggle_plan_mode,
                                          session_title=cmd_ctx.session_store._title,
                                          ctx_usage=ctx_usage,
+                                         images_ref=images_ref,
                                          # worker 进度面板：仅协调者模式启用
                                          # （get_panel_status 是线程安全快照，含完成态；普通模式传 None 零影响）
                                          worker_status_cb=worker_manager.get_panel_status
@@ -592,7 +636,9 @@ def main() -> None:
         # 等都会从 openai SDK 经 engine.submit() 一路冒上来，run_query 内部只接 Abort/Ctrl+C。
         # 不接住的话异常会逃出主循环 → 整个 TUI 当场退出。处理方式与 worker 通知路径同源。
         try:
-            run_query(engine, memory_prefix + user_input, print_mode=False, permissions=permissions)
+            # 多模态：有图片附件 → 组装 [text, image] 混合 content；无图 → 原样 str（零回归）
+            user_content = _assemble_image_content(memory_prefix, user_input, images_ref)
+            run_query(engine, user_content, print_mode=False, permissions=permissions)
         except KeyboardInterrupt:
             engine.cancel_turn()
             console.print("\n[dim yellow]⏹ Turn cancelled[/dim yellow]")

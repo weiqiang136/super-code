@@ -1,6 +1,7 @@
 """带边框的输入框 + 斜杠命令补全。"""
 from __future__ import annotations
 
+import base64
 import os
 import sys
 from typing import Callable
@@ -21,6 +22,55 @@ from prompt_toolkit.layout.menus import CompletionsMenu
 from rich.cells import cell_len
 from rich.console import Console
 from rich.text import Text
+
+console = Console()
+
+# 图片拖拽支持（P0 多模态）：扩展名 → MIME 类型
+_IMAGE_EXT_TO_MIME = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+}
+_IMAGE_MAX_BYTES = 8 * 1024 * 1024   # 图片 8MB 上限，防止 base64 撑爆内存/上下文
+
+
+def _extract_image_path(text: str) -> str | None:
+    """检测单行文本是否为图片文件路径（剥引号后 check 扩展名 + 文件存在性）。"""
+    candidate = text.strip().strip('"').strip("'").strip()
+    ext = os.path.splitext(candidate)[1].lower()
+    if ext not in _IMAGE_EXT_TO_MIME:
+        return None
+    if not os.path.isfile(candidate):
+        return None
+    return candidate
+
+
+def _register_image(path: str, registry: list, images_ref: list, counter: int) -> bool:
+    """读取图片文件 → base64，注册图片占位符（保留占位符文本，数据按序 append 到 images_ref）。
+
+    Returns:
+        True 注册成功（调用方需自增 counter）；超限/读取失败返回 False（路径文本保留原样）。
+    """
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return False
+    if size > _IMAGE_MAX_BYTES:
+        console.print(f"[yellow]⚠ 图片超过 8MB，未附加：{os.path.basename(path)}[/yellow]")
+        return False
+    try:
+        with open(path, "rb") as fh:
+            data = base64.b64encode(fh.read()).decode("utf-8")
+    except OSError:
+        return False
+    ext = os.path.splitext(path)[1].lower()
+    placeholder = f"[🖼 {counter}: {os.path.basename(path)}]"
+    registry.append((placeholder, path, "image"))
+    images_ref.append({"media_type": _IMAGE_EXT_TO_MIME.get(ext, "image/png"), "data": data})
+    return True
 
 
 def _cursor_distance_to_bottom() -> int:
@@ -114,6 +164,7 @@ def bordered_prompt(
     session_title: str = "",            # 当前会话标题，/rename 设置后显示在上边框
     ctx_usage: list | None = None,      # [已用 token, 窗口 token]，None 时不显示占用率
     worker_status_cb: Callable[[], list[dict]] | None = None,  # 返回运行中 worker 状态列表，None 时不显示进度面板
+    images_ref: list | None = None,     # 图片附件收集列表：提交时图片占位符的 base64 数据按序 append 到这里
 ) -> str:
     """带上下边框的输入框，输入 / 时弹出补全菜单，Shift+Tab 切换模式。
 
@@ -121,18 +172,23 @@ def bordered_prompt(
     """
     if mode_ref is None:
         mode_ref = [False]
+    if images_ref is None:
+        images_ref = []      # 防御：未传时图片数据无处收集，_accept 会展开占位符文本
 
     # ===== 粘贴占位符机制 =====
-    # 注册表：[(占位符文本, 原始粘贴内容), ...]
-    _paste_registry: list[tuple[str, str]] = []
+    # 注册表：[(占位符文本, 原始内容, kind), ...]
+    #   kind="text"  → 文本粘贴，_accept 展开为原始内容
+    #   kind="image" → 图片（附件），_accept 保留占位符文本，数据按序 append 到 images_ref
+    _paste_registry: list[tuple[str, str, str]] = []
     _paste_counter = 0                   # 自增编号，确保每个占位符唯一
     _last_text = ""                      # 上一次 buffer 文本，用于 diff 检测
 
     def _accept(b):
-        """提交时将所有粘贴占位符展开为原始内容。"""
+        """提交时展开文本占位符；图片占位符保持原位（数据走 images_ref 收集）。"""
         text = b.text
-        for placeholder, actual in _paste_registry:
-            text = text.replace(placeholder, actual)
+        for placeholder, actual, kind in _paste_registry:
+            if kind == "text":
+                text = text.replace(placeholder, actual)
         get_app().exit(result=text)
         return True
 
@@ -172,12 +228,29 @@ def bordered_prompt(
                 j_new -= 1
             inserted = current[i:j_new + 1]
 
+            # --- 图片拖拽检测（P0 多模态）：插入的单行是图片文件路径 → 替换为图片占位符 ---
+            if '\n' not in inserted:
+                img_path = _extract_image_path(inserted)
+                if img_path is not None:
+                    if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
+                        _paste_counter += 1
+                        placeholder = _paste_registry[-1][0]
+                        new_text = current[:i] + placeholder + current[j_new + 1:]
+                        _buf.on_text_changed -= _on_text_changed
+                        try:
+                            _buf.text = new_text
+                            _buf.cursor_position = i + len(placeholder)
+                        finally:
+                            _buf.on_text_changed += _on_text_changed
+                        _last_text = new_text
+                        return
+
             # 多行插入 → 判定为粘贴，替换为占位符
             if '\n' in inserted:
                 _paste_counter += 1
                 n_lines = inserted.count('\n') + 1
                 placeholder = f'[Pasted text #{_paste_counter} +{n_lines} lines]'
-                _paste_registry.append((placeholder, inserted))
+                _paste_registry.append((placeholder, inserted, "text"))
 
                 # 用占位符替换粘贴内容（临时移除回调避免递归触发）
                 new_text = current[:i] + placeholder + current[j_new + 1:]
