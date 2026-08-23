@@ -1,0 +1,25 @@
+tests/test_multimodal.py
+  s_6cbb26ff2f3457::t_a7115e59b1e3d8 314-316,319,321,325,327,330-331,333,337-349,351
+  s_6cbb26ff2f3457::t_ec9fc0dc494e69 311-313,317-318,320,322-324,326,328-329,332,334-336,350
+src/tui/prompt.py
+  s_6cbb26ff2f3457::t_4835b9af0fcca3 186,189-197,199,203-215
+  s_6cbb26ff2f3457::t_554fa747b2e394 187-188,198,200-202,216-217
+  s_6cbb26ff2f3457::t_e9b27b5d767f42 292,294
+  s_6cbb26ff2f3457::t_a1473d473bd156 287-291,293,295-297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d69122f2e3a2c3e53cb54b8b36534dd9e8f37e40",
+  "prompts": {},
+  "sessions": {
+    "s_6cbb26ff2f3457": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "80f30703c7b949dd89c9396b1be659c8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
