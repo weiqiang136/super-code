@@ -662,11 +662,10 @@ def reclaim_stale_read_results(messages: list[dict], session_id: str) -> tuple[l
 class CompactService:
     """通过 API 摘要压缩对话上下文。"""
 
-    def __init__(self, client: LLMClient, model: str, effort: str | None = None,
+    def __init__(self, client: LLMClient, model: str,
                  cost_tracker=None):
         self._client = client
         self._model = model
-        self._effort = effort
         self._cost_tracker = cost_tracker
 
     def compact(
@@ -784,7 +783,7 @@ class CompactService:
                     max_tokens=COMPACT_MAX_OUTPUT_TOKENS,
                     system=COMPACT_SYSTEM,
                     messages=cleaned,
-                    effort=self._effort,
+                    strip_thinking=True,  # 摘要不需要推理：剥离思考参数，防 content 为空
                 )
             except Exception as e:
                 if not _is_ptl_error(e) or attempt >= PTL_RETRY_MAX:

@@ -337,3 +337,66 @@ def _flatten_text(content):
                     parts.append(c)
         return "".join(parts)
     return ""
+
+
+def test_summary_call_uses_strip_thinking():
+    """摘要调用必须带 strip_thinking=True——剥离思考参数防 content 为空。
+
+    回归背景（2026-08-23 事故）：主模型换 deepseek-v4-flash-vision-exp 后，
+    命中 model_profiles 的 thinking.enabled 配置，非流式 create() 摘要响应
+    全部输出进 reasoning_content、content 为空 → 压缩屡次中止。
+    摘要任务不需要推理，应强制剥离思考参数。
+    """
+    class _CaptureClient(_DummyClient):
+        def __init__(self):
+            super().__init__()
+            self.last_kwargs = None
+
+        def create(self, **kwargs):
+            self.last_kwargs = kwargs
+            return super().create(**kwargs)
+
+    client = _CaptureClient()
+    svc = CompactService(client, model="unknown-model")
+    msgs = (
+        _pad_messages(5, size=20000)
+        + [{"role": "assistant", "content": "recent_a"},
+           {"role": "user", "content": "recent_u"}]
+    )
+    svc.compact(msgs, "sys", skip_if_under_threshold=False)
+    assert client.calls == 1, "摘要路径应调用 LLM"
+    assert client.last_kwargs.get("strip_thinking") is True, \
+        f"create 应带 strip_thinking=True，got {client.last_kwargs}"
+
+
+def test_create_strip_thinking_skips_extra_body(monkeypatch):
+    """strip_thinking=True → 不走 model_profiles（不带思考 extra_body）；False → 照常带。
+
+    实现方式：摘要场景直接跳过 _lookup_extra_body，而不是剥离思考 key——
+    extra_body 均为思考控制参数（用户 profile 现状），剔除清单维护成本。
+    """
+    from core.llm import LLMClient
+    client = LLMClient(provider="openai", api_key="test", model_profiles={
+        "deepseek-v4-flash": {
+            "extra_body": {"thinking": {"type": "enabled"}, "reasoning_effort": "max"}}})
+    captured = []
+
+    def _fake_create(**params):
+        captured.append(params)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=None)
+
+    monkeypatch.setattr(client._client.chat.completions, "create", _fake_create)
+    msgs = [{"role": "user", "content": "hi"}]
+
+    # 摘要路径：strip_thinking=True → 不带 extra_body
+    client.create(model="deepseek-v4-flash-vision-exp", max_tokens=100,
+                  messages=msgs, strip_thinking=True)
+    assert "extra_body" not in captured[-1], \
+        f"strip_thinking 应跳过 model_profiles，got {captured[-1]}"
+
+    # 主对话路径：strip_thinking=False → 命中 profiles 带思考 extra_body
+    client.create(model="deepseek-v4-flash-vision-exp", max_tokens=100, messages=msgs)
+    assert captured[-1]["extra_body"] == {
+        "thinking": {"type": "enabled"}, "reasoning_effort": "max"}

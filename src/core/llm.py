@@ -161,16 +161,20 @@ class LLMClient:
 
     # 非流式输出（用于 compact 摘要等场景）
     def create(self, *, model: str, max_tokens: int, messages: list[dict[str, Any]],
-               system: str | None = None, effort: str | None = None) -> "StreamMessage":
+               system: str | None = None, strip_thinking: bool = False) -> "StreamMessage":
         if self.provider == OPENAI:
             params: dict[str, Any] = {
                 "model": model,
                 "messages": _to_openai_messages(system, messages),
                 "max_tokens": max_tokens,
             }
-            eb = _lookup_extra_body(model, self._model_profiles)
-            if eb:
-                params["extra_body"] = eb
+            # 摘要等场景不需要思考：跳过 model_profiles（extra_body 均为思考控制参数），
+            # 走 API 默认（非思考）路径——思考模型非流式会全量输出到 reasoning_content、
+            # content 为空 → 摘要为空。
+            if not strip_thinking:
+                eb = _lookup_extra_body(model, self._model_profiles)
+                if eb:
+                    params["extra_body"] = eb
             resp = self._client.chat.completions.create(**params)
             choice = resp.choices[0].message if resp.choices else None
             text = (choice.content or "") if choice else ""
