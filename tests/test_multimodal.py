@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, "src")
 
 from tui.app import _assemble_image_content, _IMAGE_PLACEHOLDER_RE
-from tui.prompt import _extract_image_path, _register_image, _IMAGE_MAX_BYTES
+from tui.prompt import _extract_image_paths, _register_image, _IMAGE_MAX_BYTES
 
 
 # ── 组装层 ──────────────────────────────────────────────
@@ -62,20 +62,51 @@ def test_assemble_placeholder_deleted_defensive():
 
 # ── 路径识别 ────────────────────────────────────────────
 
-def test_extract_image_path_recognizes(tmp_path):
+def test_extract_image_paths_single(tmp_path):
     p = tmp_path / "shot.png"
     p.write_bytes(b"x")
-    assert _extract_image_path(str(p)) == str(p)
-    assert _extract_image_path(f'"{p}"') == str(p)          # 剥引号（终端拖拽带引号）
-    assert _extract_image_path(f"  {p}  ") == str(p)
+    assert _extract_image_paths(str(p)) == [str(p)]
+    assert _extract_image_paths(f'"{p}"') == [str(p)]        # 剥引号（终端拖拽带引号）
+    assert _extract_image_paths(f"  {p}  ") == [str(p)]
 
 
-def test_extract_image_path_rejects(tmp_path):
+def test_extract_image_paths_multiple(tmp_path):
+    a = tmp_path / "a.png"
+    b_space = tmp_path / "b b.jpg"    # 文件名含空格 → WT 注入必带引号
+    b_plain = tmp_path / "b.jpg"      # 无空格 → 裸路径
+    a.write_bytes(b"x")
+    b_space.write_bytes(b"x")
+    b_plain.write_bytes(b"x")
+    assert _extract_image_paths(f'"{a}" "{b_space}"') == [str(a), str(b_space)]  # 全引号（含空格路径）
+    assert _extract_image_paths(f'"{a}" {b_plain}') == [str(a), str(b_plain)]    # 引号+裸混合
+    assert _extract_image_paths(f'"{a}" "{b_space}" missing.png') == [str(a), str(b_space)]  # 不存在忽略
+
+
+def test_extract_image_paths_rejects(tmp_path):
     txt = tmp_path / "note.txt"
     txt.write_text("x")
-    assert _extract_image_path(str(txt)) is None             # 非图片扩展名
-    assert _extract_image_path(str(tmp_path / "missing.png")) is None  # 文件不存在
-    assert _extract_image_path("随便一句话没有路径") is None
+    assert _extract_image_paths(str(txt)) == []                 # 非图片扩展名
+    assert _extract_image_paths(str(tmp_path / "missing.png")) == []  # 文件不存在
+    assert _extract_image_paths("随便一句话没有路径") == []
+    assert _extract_image_paths("看一下 https://x.com/foo.png") == []  # URL 非本地文件
+
+
+def test_register_multiple_images(tmp_path):
+    """多文件拖入 → 多个占位符 + images_ref 多条目，顺序对应。"""
+    a = tmp_path / "a.png"
+    b = tmp_path / "b.jpg"
+    a.write_bytes(b"\x89PNG data-a")
+    b.write_bytes(b"\xff\xd8 data-b")
+    registry: list = []
+    images_ref: list = []
+    paths = _extract_image_paths(f'"{a}" "{b}"')
+    assert paths == [str(a), str(b)]
+    for i, path in enumerate(paths):
+        assert _register_image(path, registry, images_ref, i) is True
+    assert [p for p, _n, k in registry] == ["[🖼 0: a.png]", "[🖼 1: b.jpg]"]
+    assert [img for img in registry] and len(images_ref) == 2
+    assert images_ref[0]["media_type"] == "image/png"
+    assert images_ref[1]["media_type"] == "image/jpeg"
 
 
 # ── 注册 → base64 ───────────────────────────────────────
@@ -173,12 +204,14 @@ def test_get_clipboard_image_exc(monkeypatch):
 # ── P2 能力表 ────────────────────────────────────────────
 
 def test_supports_vision_known():
+    """能力表（用户精简版：国内系 + vision/vl 兜底）命中判定。"""
     from core.model_capabilities import supports_vision
     assert supports_vision("deepseek-v4-flash-vision-exp") is True
-    assert supports_vision("GPT-4O") is True
     assert supports_vision("glm-4.5v") is True
-    assert supports_vision("claude-3-5-sonnet") is True
     assert supports_vision("qwen2.5-vl-72b") is True
+    # 表外模型（如 gpt-4o）→ None 未知放行，不误拦
+    assert supports_vision("GPT-4O") is None
+    assert supports_vision("claude-3-5-sonnet") is None
 
 
 def test_supports_vision_not_supported():
@@ -253,3 +286,25 @@ def test_image_size_from_bytes_png_jpeg():
     jpeg = (b"\xff\xd8" + b"\xff\xc0" + struct.pack(">H", 11) + b"\x08"
             + struct.pack(">HH", 480, 320) + b"\x01\x01\x11\x00")
     assert _image_size_from_bytes(jpeg) == (320, 480)
+
+
+# ── P3 序列化兼容（JSONL 落盘 / resume 恢复含图消息）──────
+
+def test_serialize_content_image_message_roundtrip():
+    """含图 user 消息经 _serialize_content 后字段无损（JSON 可序列化）。"""
+    import json
+    from core.session import _serialize_content, _extract_text
+    msg = {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "看图"},
+            {"type": "image", "source": {"media_type": "image/png", "data": "QUJD"}},
+        ],
+    }
+    safe = _serialize_content(msg["content"])
+    # JSON 可序列化（无 Pydantic/SDK 对象残留）
+    json.dumps({"content": safe}, ensure_ascii=False)
+    assert safe[0] == {"type": "text", "text": "看图"}
+    assert safe[1] == {"type": "image", "source": {"media_type": "image/png", "data": "QUJD"}}
+    # 标题抽取：图片 block 无 text → _extract_text join 后带尾空格
+    assert _extract_text(safe) == "看图 "

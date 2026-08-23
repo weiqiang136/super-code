@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import sys
 from typing import Callable
 
@@ -36,16 +37,22 @@ _IMAGE_EXT_TO_MIME = {
 }
 _IMAGE_MAX_BYTES = 8 * 1024 * 1024   # 图片 8MB 上限，防止 base64 撑爆内存/上下文
 
+# 多路径解析：先匹配引号包裹（含空格路径），再匹配裸词（空格分隔）。支持多文件拖入。
+_IMAGE_PATHS_RE = re.compile(r'"([^"]+)"|(\S+)')
 
-def _extract_image_path(text: str) -> str | None:
-    """检测单行文本是否为图片文件路径（剥引号后 check 扩展名 + 文件存在性）。"""
-    candidate = text.strip().strip('"').strip("'").strip()
-    ext = os.path.splitext(candidate)[1].lower()
-    if ext not in _IMAGE_EXT_TO_MIME:
-        return None
-    if not os.path.isfile(candidate):
-        return None
-    return candidate
+
+def _extract_image_paths(text: str) -> list[str]:
+    """提取文本中所有图片文件路径（支持多文件拖入：引号包裹+空格分隔混合）。
+
+    返回存在的图片路径列表（扩展名 + 存在性校验），非图片/不存在路径静默忽略。
+    """
+    results = []
+    for quoted, bare in _IMAGE_PATHS_RE.findall(text):
+        candidate = (quoted or bare).strip().strip('"').strip("'").strip()
+        ext = os.path.splitext(candidate)[1].lower()
+        if ext in _IMAGE_EXT_TO_MIME and os.path.isfile(candidate):
+            results.append(candidate)
+    return results
 
 
 def _register_image_data(media_type: str, data: str, name: str,
@@ -260,22 +267,24 @@ def bordered_prompt(
                 j_new -= 1
             inserted = current[i:j_new + 1]
 
-            # --- 图片拖拽检测（P0 多模态）：插入的单行是图片文件路径 → 替换为图片占位符 ---
+            # --- 图片拖拽检测（P0 多模态）：插入的是图片文件路径（支持多文件）→ 替换为图片占位符 ---
             if '\n' not in inserted:
-                img_path = _extract_image_path(inserted)
-                if img_path is not None:
+                img_paths = _extract_image_paths(inserted)
+                placeholders = []
+                for img_path in img_paths:
                     if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
                         _paste_counter += 1
-                        placeholder = _paste_registry[-1][0]
-                        new_text = current[:i] + placeholder + current[j_new + 1:]
-                        _buf.on_text_changed -= _on_text_changed
-                        try:
-                            _buf.text = new_text
-                            _buf.cursor_position = i + len(placeholder)
-                        finally:
-                            _buf.on_text_changed += _on_text_changed
-                        _last_text = new_text
-                        return
+                        placeholders.append(_paste_registry[-1][0])
+                if placeholders:
+                    new_text = current[:i] + " ".join(placeholders) + current[j_new + 1:]
+                    _buf.on_text_changed -= _on_text_changed
+                    try:
+                        _buf.text = new_text
+                        _buf.cursor_position = i + len(" ".join(placeholders))
+                    finally:
+                        _buf.on_text_changed += _on_text_changed
+                    _last_text = new_text
+                    return
 
             # --- 剪贴板截图检测（P1 多模态）：多字符插入（疑似粘贴）时探测剪贴板位图 ---
             # 单字符打字不探测，避免每敲一键跑一次 PowerShell 卡输入
