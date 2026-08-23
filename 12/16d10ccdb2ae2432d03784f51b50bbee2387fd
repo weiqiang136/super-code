@@ -1,0 +1,26 @@
+tests/test_compact_prune.py
+  s_477e7f32d81bb9::t_00a4bf36e2f143 340-371
+  s_477e7f32d81bb9::t_6e384f258d9bfb 372-402
+src/core/llm.py
+  s_477e7f32d81bb9::t_9b9479655ae05d 164
+  s_477e7f32d81bb9::t_2237898aac6503 171-177
+src/features/compact.py
+  s_477e7f32d81bb9::t_87935c6a56add6 665
+  s_477e7f32d81bb9::t_5af2c848093e05 786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1216d10ccdb2ae2432d03784f51b50bbee2387fd",
+  "prompts": {},
+  "sessions": {
+    "s_477e7f32d81bb9": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0b7a08e41c704d8881b1fcf1d3034d61",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
