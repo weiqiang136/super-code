@@ -1,0 +1,37 @@
+src/tui/app.py
+  s_4f9fe51e040e92::t_4dfea01b0446a8 23
+  s_4f9fe51e040e92::t_e06b0c9dd3baf4 642-651
+src/features/compact.py
+  s_4f9fe51e040e92::t_13c095ef604fbe 280-283,285-349,352-356,359-374
+  s_c48d69769c0b7a::t_2c85515a07b465 284
+src/core/model_capabilities.py
+  s_4f9fe51e040e92::t_a3e18029fac437 9-12,14-30,33-45
+tests/test_multimodal.py
+  s_4f9fe51e040e92::t_707573d16a8c90 211,213
+  s_4f9fe51e040e92::t_06305dd975d4dc 235,237
+  s_4f9fe51e040e92::t_1d9d6d1c96b77c 171-210,212,214-234,236,238-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d45a8a63720cf8342107bf3ef549d91851c36825",
+  "prompts": {},
+  "sessions": {
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_c48d69769c0b7a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "baced6d3ba854da2bcc80d61b83423f8",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
