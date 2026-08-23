@@ -48,6 +48,18 @@ def _extract_image_path(text: str) -> str | None:
     return candidate
 
 
+def _register_image_data(media_type: str, data: str, name: str,
+                         registry: list, images_ref: list, counter: int) -> None:
+    """通用图片占位符注册：占位符文本 + base64 数据按序 append 到 images_ref。
+
+    registry 条目 (placeholder, name, "image")：_accept 时保留占位符文本，
+    数据由 images_ref 收集（拖拽 / 剪贴板共用此函数）。
+    """
+    placeholder = f"[🖼 {counter}: {name}]"
+    registry.append((placeholder, name, "image"))
+    images_ref.append({"media_type": media_type, "data": data})
+
+
 def _register_image(path: str, registry: list, images_ref: list, counter: int) -> bool:
     """读取图片文件 → base64，注册图片占位符（保留占位符文本，数据按序 append 到 images_ref）。
 
@@ -67,9 +79,29 @@ def _register_image(path: str, registry: list, images_ref: list, counter: int) -
     except OSError:
         return False
     ext = os.path.splitext(path)[1].lower()
-    placeholder = f"[🖼 {counter}: {os.path.basename(path)}]"
-    registry.append((placeholder, path, "image"))
-    images_ref.append({"media_type": _IMAGE_EXT_TO_MIME.get(ext, "image/png"), "data": data})
+    _register_image_data(
+        _IMAGE_EXT_TO_MIME.get(ext, "image/png"), data, os.path.basename(path),
+        registry, images_ref, counter,
+    )
+    return True
+
+
+def _register_clipboard_image(registry: list, images_ref: list, counter: int) -> bool:
+    """探测剪贴板位图（PowerShell）→ 注册图片占位符。
+
+    Returns:
+        True 注册成功（调用方需自增 counter）；无图/失败返回 False。
+    """
+    from tui.clipboard_image import get_clipboard_image
+    got = get_clipboard_image()
+    if got is None:
+        return False
+    media_type, data = got
+    if len(data) // 4 * 3 > _IMAGE_MAX_BYTES:   # base64 估算字节数
+        console.print("[yellow]⚠ 剪贴板图片超过 8MB，未附加[/yellow]")
+        return False
+    _register_image_data(media_type, data, f"clipboard-{counter}.png",
+                         registry, images_ref, counter)
     return True
 
 
@@ -244,6 +276,22 @@ def bordered_prompt(
                             _buf.on_text_changed += _on_text_changed
                         _last_text = new_text
                         return
+
+            # --- 剪贴板截图检测（P1 多模态）：多字符插入（疑似粘贴）时探测剪贴板位图 ---
+            # 单字符打字不探测，避免每敲一键跑一次 PowerShell 卡输入
+            if len(inserted) >= 2 and _register_clipboard_image(
+                    _paste_registry, images_ref, _paste_counter):
+                _paste_counter += 1
+                placeholder = _paste_registry[-1][0]
+                new_text = current[:i] + placeholder + current[j_new + 1:]
+                _buf.on_text_changed -= _on_text_changed
+                try:
+                    _buf.text = new_text
+                    _buf.cursor_position = i + len(placeholder)
+                finally:
+                    _buf.on_text_changed += _on_text_changed
+                _last_text = new_text
+                return
 
             # 多行插入 → 判定为粘贴，替换为占位符
             if '\n' in inserted:
@@ -556,14 +604,14 @@ def bordered_prompt(
         cursor_pos = buf.cursor_position
         text_before = buf.text[:cursor_pos]
         # 检查光标前是否以某个占位符结尾
-        for placeholder, _actual in _paste_registry:
+        for placeholder, _actual, _kind in _paste_registry:
             if text_before.endswith(placeholder):
                 # 一次性删除整个占位符
                 new_text = buf.text[:cursor_pos - len(placeholder)] + buf.text[cursor_pos:]
                 buf.text = new_text
                 buf.cursor_position = cursor_pos - len(placeholder)
-                # 从注册表移除该占位符
-                _paste_registry[:] = [(p, a) for p, a in _paste_registry if p != placeholder]
+                # 从注册表移除该占位符（保留其余条目 kind 字段）
+                _paste_registry[:] = [(p, a, k) for p, a, k in _paste_registry if p != placeholder]
                 return
         # 非占位符：执行默认单字符删除
         buf.delete_before_cursor(1)
