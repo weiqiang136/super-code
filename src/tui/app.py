@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.markup import escape as _escape
 
 from commands import CommandContext, handle_command, is_known_command, parse_command
-from core.config import load_app_config
+from core.config import ensure_user_config, load_app_config
 from core.context import build_system_prompt
 from core.engine import Engine
 from core.llm import LLMClient
@@ -153,7 +153,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.3.4", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.6", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -238,6 +238,7 @@ def _trigger_auto_dream_bg(app_config, memory_dir: Path, session_store) -> bool:
 
 def main() -> None:
     print("\033]0;super-code\007", end="")  # 设置终端标题
+    ensure_user_config()  # pip/开发模式：首启从内置模板落盘全局配置
     parser = argparse.ArgumentParser(prog="super-code", description="Minimal AI coding assistant")
     parser.add_argument("prompt", nargs="?", help="Prompt to send (optional)")
     parser.add_argument("-p", "--print", action="store_true",
