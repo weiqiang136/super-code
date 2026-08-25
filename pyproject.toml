@@ -18,5 +18,8 @@ dependencies = [
 [project.scripts]
 super-code = "tui.app:main"
 
+[tool.setuptools.package-data]
+core = ["config_template.json"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
