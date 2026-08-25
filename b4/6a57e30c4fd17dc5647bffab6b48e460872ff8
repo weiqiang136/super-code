@@ -1,0 +1,21 @@
+src/core/config_template.json
+  s_2628560bf0ec50::t_b6ad9f71783cfa 1-7
+pyproject.toml
+  s_2628560bf0ec50::t_27699d747ca59d 21-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b46a57e30c4fd17dc5647bffab6b48e460872ff8",
+  "prompts": {},
+  "sessions": {
+    "s_2628560bf0ec50": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0566118028ce4bd884cc715d92afdd06",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
