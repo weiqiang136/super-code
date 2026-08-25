@@ -5,7 +5,7 @@ Minimal AI coding assistant —— 命令行交互式 AI 编码助手。
 ## 安装
 
 ```bash
-pip install super-code
+pip install super-code-cli
 ```
 
 安装后**首次运行**自动初始化配置到 `~/.config/super-code/super-code.json`，

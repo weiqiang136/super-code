@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "super-code"
+name = "super-code-cli"
 version = "3.3.6"
 description = "Minimal AI coding assistant"
 readme = "README.md"
