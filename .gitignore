@@ -7,8 +7,16 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+*.egg-info/
 
 # 构建产物
 build/
 dist/
 *.spec
+
+# IDE
+.idea/
+
+# 临时文件和测试目录
+%TEMP%/
+.supercode-*.py
