@@ -1,0 +1,25 @@
+.gitignore
+  s_0f5e305f428cb7::t_4bd8bd658f0ffa 10,16-22
+pyproject.toml
+  s_0f5e305f428cb7::t_a8b24534b0a0ab 7
+src/core/config_template.json
+  s_0f5e305f428cb7::t_b9a74e70bf8949 3-46
+src/tui/app.py
+  s_0f5e305f428cb7::t_a8b24534b0a0ab 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6f881a6af6bf48e4da5d1a97b5a23d5bf5862e04",
+  "prompts": {},
+  "sessions": {
+    "s_0f5e305f428cb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecc4fb47-e4b3-4863-83fe-681b9122753e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
