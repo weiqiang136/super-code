@@ -83,6 +83,29 @@ class AppConfig:
 # 核心入口
 # =========================
 
+def ensure_user_config() -> Path | None:
+    """pip/开发模式：全局配置不存在时从包内模板落盘到 ~/.config/super-code/。
+
+    - frozen（exe 便携版）直接跳过，行为零变化；
+    - 已存在配置绝不覆盖（用户数据优先）；
+    - 落盘失败（无权限等）静默返回 None，不阻塞启动。
+    返回落盘后的配置路径；未写入时返回 None。
+    """
+    if getattr(sys, "frozen", False):
+        return None
+    if GLOBAL_CONFIG.exists():
+        return None
+    try:
+        import importlib.resources as _res
+
+        template = _res.files("core").joinpath("config_template.json")
+        GLOBAL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        GLOBAL_CONFIG.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    except Exception:
+        return None
+    return GLOBAL_CONFIG
+
+
 def load_app_config(args: Namespace) -> AppConfig:
     """
     配置优先级：
