@@ -37,6 +37,8 @@ _IMAGE_EXT_TO_MIME = {
 }
 _IMAGE_MAX_BYTES = 8 * 1024 * 1024   # 图片 8MB 上限，防止 base64 撑爆内存/上下文
 
+# Windows 绝对路径正则：盘符 + 冒号 + 反斜杠开头（如 C:\...）
+_WIN_PATH_RE = re.compile(r'[A-Za-z]:[/\\][^\s]*')
 # 多路径解析：先匹配引号包裹（含空格路径），再匹配裸词（空格分隔）。支持多文件拖入。
 _IMAGE_PATHS_RE = re.compile(r'"([^"]+)"|(\S+)')
 
@@ -47,11 +49,22 @@ def _extract_image_paths(text: str) -> list[str]:
     返回存在的图片路径列表（扩展名 + 存在性校验），非图片/不存在路径静默忽略。
     """
     results = []
-    for quoted, bare in _IMAGE_PATHS_RE.findall(text):
-        candidate = (quoted or bare).strip().strip('"').strip("'").strip()
+
+    # 策略1：先尝试提取 Windows 绝对路径（C:\...）
+    for match in _WIN_PATH_RE.finditer(text):
+        candidate = match.group(0).strip()
         ext = os.path.splitext(candidate)[1].lower()
         if ext in _IMAGE_EXT_TO_MIME and os.path.isfile(candidate):
             results.append(candidate)
+
+    # 策略2：如果没找到，再用通用正则（引号包裹 + 空格分隔）
+    if not results:
+        for quoted, bare in _IMAGE_PATHS_RE.findall(text):
+            candidate = (quoted or bare).strip().strip('"').strip("'").strip()
+            ext = os.path.splitext(candidate)[1].lower()
+            if ext in _IMAGE_EXT_TO_MIME and os.path.isfile(candidate):
+                results.append(candidate)
+
     return results
 
 
@@ -253,9 +266,19 @@ def bordered_prompt(
     _paste_registry: list[tuple[str, str, str]] = []
     _paste_counter = 0                   # 自增编号，确保每个占位符唯一
     _last_text = ""                      # 上一次 buffer 文本，用于 diff 检测
+    _pending_check_handle = None         # 延迟检测的定时器句柄（用于处理逐字符拖拽）
 
     def _accept(b):
         """提交时展开文本占位符；图片占位符保持原位（数据走 images_ref 收集）。"""
+        nonlocal _pending_check_handle
+        # 取消待执行的延迟检测
+        if _pending_check_handle:
+            try:
+                _pending_check_handle.cancel()
+            except Exception:
+                pass
+            _pending_check_handle = None
+
         text = b.text
         for placeholder, actual, kind in _paste_registry:
             if kind == "text":
@@ -280,7 +303,7 @@ def bordered_prompt(
 
     def _on_text_changed(_buf):
         """文本变化回调：检测多行粘贴并替换为占位符；同时处理 / 补全触发。"""
-        nonlocal _last_text, _paste_counter
+        nonlocal _last_text, _paste_counter, _pending_check_handle
 
         current = _buf.text
 
@@ -318,7 +341,16 @@ def bordered_prompt(
                     if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
                         _paste_counter += 1
                         placeholders.append(_paste_registry[-1][0])
+
                 if placeholders:
+                    # 取消待执行的延迟检测
+                    if _pending_check_handle:
+                        try:
+                            _pending_check_handle.cancel()
+                        except Exception:
+                            pass
+                        _pending_check_handle = None
+
                     new_text = current[:i] + " ".join(placeholders) + current[j_new + 1:]
                     _buf.on_text_changed -= _on_text_changed
                     try:
@@ -333,6 +365,14 @@ def bordered_prompt(
             # 单字符打字不探测，避免每敲一键跑一次 PowerShell 卡输入
             if len(inserted) >= 2 and _register_clipboard_image(
                     _paste_registry, images_ref, _paste_counter):
+                # 取消待执行的延迟检测
+                if _pending_check_handle:
+                    try:
+                        _pending_check_handle.cancel()
+                    except Exception:
+                        pass
+                    _pending_check_handle = None
+
                 _paste_counter += 1
                 placeholder = _paste_registry[-1][0]
                 new_text = current[:i] + placeholder + current[j_new + 1:]
@@ -347,6 +387,14 @@ def bordered_prompt(
 
             # 多行插入 → 判定为粘贴，替换为占位符
             if '\n' in inserted:
+                # 取消待执行的延迟检测
+                if _pending_check_handle:
+                    try:
+                        _pending_check_handle.cancel()
+                    except Exception:
+                        pass
+                    _pending_check_handle = None
+
                 _paste_counter += 1
                 n_lines = inserted.count('\n') + 1
                 placeholder = f'[Pasted text #{_paste_counter} +{n_lines} lines]'
@@ -363,6 +411,55 @@ def bordered_prompt(
 
                 _last_text = new_text
                 return
+
+        # --- 延迟检测（处理逐字符拖拽）---
+        # 取消之前的定时器，重新设置新的定时器
+        if _pending_check_handle:
+            try:
+                _pending_check_handle.cancel()
+            except Exception:
+                pass
+
+        def _delayed_check():
+            """延迟检测：文本停止变化后，对完整文本进行图片路径检测。"""
+            nonlocal _paste_counter, _pending_check_handle, _last_text
+            _pending_check_handle = None
+
+            text = _buf.text
+            print(f"[DEBUG delayed_check] text={repr(text)}")  # DEBUG
+            if not text.strip():
+                return
+
+            # 检测完整文本中的图片路径
+            img_paths = _extract_image_paths(text)
+            print(f"[DEBUG delayed_check] img_paths={img_paths}")  # DEBUG
+            if img_paths:
+                new_text = text
+                for img_path in img_paths:
+                    print(f"[DEBUG] Registering img_path={repr(img_path)}")  # DEBUG
+                    if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
+                        _paste_counter += 1
+                        placeholder = _paste_registry[-1][0]
+                        print(f"[DEBUG] Replacing {repr(img_path)} -> {repr(placeholder)}")  # DEBUG
+                        # 替换路径为占位符，保留其他文本
+                        new_text = new_text.replace(img_path, placeholder)
+
+                print(f"[DEBUG] new_text={repr(new_text)}, original={repr(text)}")  # DEBUG
+                if new_text != text:
+                    _buf.on_text_changed -= _on_text_changed
+                    try:
+                        _buf.text = new_text
+                        _buf.cursor_position = len(new_text)
+                    finally:
+                        _buf.on_text_changed += _on_text_changed
+                    _last_text = new_text
+
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            _pending_check_handle = loop.call_later(0.3, _delayed_check)  # 300ms 延迟
+        except RuntimeError:
+            pass
 
         _last_text = current
 
