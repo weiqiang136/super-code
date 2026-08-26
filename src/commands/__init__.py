@@ -561,7 +561,7 @@ def _cmd_skills(ctx: CommandContext, args: str) -> None:
 
 
 def _cmd_cost(ctx: CommandContext, args: str) -> None:
-    """显示本次会话的 token 用量和费用摘要。"""
+    """显示本次会话的 token 用量摘要。"""
     if ctx.cost_tracker is None:
         ctx.console.print("[dim]Cost tracking not available.[/dim]")
         return

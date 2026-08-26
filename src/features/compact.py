@@ -858,7 +858,7 @@ class CompactService:
                 new_messages.append(att)
 
         # Step 8：压缩成功后更新 cost_tracker：
-        # 1) 记账本次摘要调用的 token/费用（此前非流式 create 不返回 usage，/cost 漏记）；
+        # 1) 记账本次摘要调用的 token（此前非流式 create 不返回 usage，/cost 漏记）；
         # 2) 覆盖 last_input_tokens 为压缩后新历史的估算值——摘要请求的 input 是压缩前的
         #    旧历史，add_usage 会记成旧值导致底部栏 ctx 占用率虚高，下一轮对话再纠正为精确值。
         if self._cost_tracker and response.usage:

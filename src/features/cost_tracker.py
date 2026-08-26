@@ -1,56 +1,13 @@
-"""Token usage and cost tracking."""
+"""Token usage tracking.
+
+只统计 token 用量（来自 API 返回的 usage），不计算费用——
+模型定价表难以覆盖各种服务商，估算费用会造成误导（如 DeepSeek 被按
+Claude 定价高估 ~10 倍，见 V3.3.10+ 之前的历史问题）。
+"""
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-
-
-# ---------------------------------------------------------------------------
-# Pricing per million tokens ($/MTok)
-# ---------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class _PricingTier:
-    input: float
-    output: float
-    cache_write: float = 0.0
-    cache_read: float = 0.0
-
-
-# OpenAI 模型定价（按 $/MTok）
-_TIER_GPT4O = _PricingTier(input=2.5, output=10.0)
-_TIER_GPT4O_MINI = _PricingTier(input=0.15, output=0.60)
-_TIER_GPT4_TURBO = _PricingTier(input=10.0, output=30.0)
-
-# Claude 模型定价
-_TIER_3_15 = _PricingTier(input=3.0, output=15.0, cache_write=3.75, cache_read=0.30)
-_TIER_5_25 = _PricingTier(input=5.0, output=25.0, cache_write=6.25, cache_read=0.50)
-_TIER_HAIKU_45 = _PricingTier(input=1.0, output=5.0, cache_write=1.25, cache_read=0.10)
-
-# 前缀匹配，先匹配先赢
-_MODEL_PRICING: list[tuple[str, _PricingTier]] = [
-    ("gpt-4o-mini", _TIER_GPT4O_MINI),
-    ("gpt-4o", _TIER_GPT4O),
-    ("gpt-4-turbo", _TIER_GPT4_TURBO),
-    ("claude-haiku-4-5", _TIER_HAIKU_45),
-    ("claude-opus-4", _TIER_5_25),
-    ("claude-sonnet", _TIER_3_15),
-    ("claude-3-5-sonnet", _TIER_3_15),
-    ("claude-3-7-sonnet", _TIER_3_15),
-]
-
-_DEFAULT_TIER = _TIER_3_15
-
-
-def _tier_for_model(model: str) -> _PricingTier | None:
-    model_lower = model.lower()
-    for prefix, tier in _MODEL_PRICING:
-        if prefix in model_lower:
-            return tier
-    # 未知 OpenAI 模型不计费
-    if model_lower.startswith(("gpt-", "o1", "o3", "o4")):
-        return None
-    return _DEFAULT_TIER
 
 
 # ---------------------------------------------------------------------------
@@ -63,8 +20,6 @@ class ModelUsage:
     output_tokens: int = 0
     cache_read_input_tokens: int = 0
     cache_creation_input_tokens: int = 0
-    cost_usd: float = 0.0
-    pricing_known: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +54,9 @@ def _fmt_duration(seconds: float) -> str:
 # ---------------------------------------------------------------------------
 
 class CostTracker:
-    """跨 API 调用累计 token 用量和费用。"""
+    """跨 API 调用累计 token 用量。"""
 
     def __init__(self) -> None:
-        self._total_cost_usd: float = 0.0
         self._model_usage: dict[str, ModelUsage] = {}
         self._wall_start: float = time.monotonic()
         self._last_input_tokens: int = 0
@@ -122,27 +76,12 @@ class CostTracker:
         self._last_input_tokens = n
 
     @property
-    def total_cost_usd(self) -> float:
-        return self._total_cost_usd
+    def has_usage(self) -> bool:
+        """是否记录到过任何 API 用量。"""
+        return bool(self._model_usage)
 
-    @staticmethod
-    def calculate_cost(model: str, usage: dict) -> float:
-        """计算单次 API 调用的费用（USD）。"""
-        tier = _tier_for_model(model)
-        if tier is None:
-            return 0.0
-        cost = (
-            usage.get("input_tokens", 0) * tier.input
-            + usage.get("output_tokens", 0) * tier.output
-            + usage.get("cache_read_input_tokens", 0) * tier.cache_read
-            + usage.get("cache_creation_input_tokens", 0) * tier.cache_write
-        ) / 1_000_000
-        return cost
-
-    def add_usage(self, model: str, usage: dict) -> float:
-        """记录 token 用量，返回本次调用费用。"""
-        cost = self.calculate_cost(model, usage)
-        self._total_cost_usd += cost
+    def add_usage(self, model: str, usage: dict) -> None:
+        """记录一次 API 调用的 token 用量。"""
         self._last_input_tokens = usage.get("input_tokens", 0)
 
         mu = self._model_usage.setdefault(model, ModelUsage())
@@ -150,22 +89,14 @@ class CostTracker:
         mu.output_tokens += usage.get("output_tokens", 0)
         mu.cache_read_input_tokens += usage.get("cache_read_input_tokens", 0)
         mu.cache_creation_input_tokens += usage.get("cache_creation_input_tokens", 0)
-        mu.cost_usd += cost
-        if _tier_for_model(model) is None:
-            mu.pricing_known = False
-        return cost
 
     def format_cost(self) -> str:
-        """生成人类可读的费用摘要。"""
+        """生成可读的 token 用量摘要。"""
         if not self._model_usage:
             return "No API usage recorded."
 
         wall_s = time.monotonic() - self._wall_start
-        unknown = any(not mu.pricing_known for mu in self._model_usage.values())
-        lines: list[str] = [f"Total cost:            ${self._total_cost_usd:.4f}"]
-        if unknown:
-            lines.append("Pricing note:          Costs may be inaccurate (unknown model pricing)")
-        lines.append(f"Total duration (wall): {_fmt_duration(wall_s)}")
+        lines: list[str] = [f"Total duration (wall): {_fmt_duration(wall_s)}"]
         lines.append("Usage by model:")
 
         max_name = max(len(m) for m in self._model_usage)
@@ -176,9 +107,6 @@ class CostTracker:
                 parts.append(f"{_fmt_tokens(mu.cache_read_input_tokens)} cache read")
             if mu.cache_creation_input_tokens:
                 parts.append(f"{_fmt_tokens(mu.cache_creation_input_tokens)} cache write")
-            detail = ", ".join(parts)
-            if not mu.pricing_known:
-                detail += ", pricing unavailable"
-            lines.append(f"  {model.rjust(max_name)}:  {detail} (${mu.cost_usd:.4f})")
+            lines.append(f"  {model.rjust(max_name)}:  {', '.join(parts)}")
 
         return "\n".join(lines)

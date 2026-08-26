@@ -153,7 +153,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.3.10", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.11", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -717,8 +717,8 @@ def main() -> None:
     # 退出时关闭所有 MCP server 子进程
     shutdown_mcp()
 
-    # 退出时打印费用摘要
-    if cost_tracker.total_cost_usd > 0 or cost_tracker.last_input_tokens > 0:
+    # 退出时打印 token 用量摘要
+    if cost_tracker.has_usage:
         console.print(f"\n[dim]{cost_tracker.format_cost()}[/dim]")
 
 
