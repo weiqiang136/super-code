@@ -426,25 +426,20 @@ def bordered_prompt(
             _pending_check_handle = None
 
             text = _buf.text
-            print(f"[DEBUG delayed_check] text={repr(text)}")  # DEBUG
             if not text.strip():
                 return
 
             # 检测完整文本中的图片路径
             img_paths = _extract_image_paths(text)
-            print(f"[DEBUG delayed_check] img_paths={img_paths}")  # DEBUG
             if img_paths:
                 new_text = text
                 for img_path in img_paths:
-                    print(f"[DEBUG] Registering img_path={repr(img_path)}")  # DEBUG
                     if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
                         _paste_counter += 1
                         placeholder = _paste_registry[-1][0]
-                        print(f"[DEBUG] Replacing {repr(img_path)} -> {repr(placeholder)}")  # DEBUG
                         # 替换路径为占位符，保留其他文本
                         new_text = new_text.replace(img_path, placeholder)
 
-                print(f"[DEBUG] new_text={repr(new_text)}, original={repr(text)}")  # DEBUG
                 if new_text != text:
                     _buf.on_text_changed -= _on_text_changed
                     try:
