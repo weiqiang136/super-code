@@ -361,31 +361,7 @@ def bordered_prompt(
                     _last_text = new_text
                     return
 
-            # --- 剪贴板截图检测（P1 多模态）：多字符插入（疑似粘贴）时探测剪贴板位图 ---
-            # 单字符打字不探测，避免每敲一键跑一次 PowerShell 卡输入
-            if len(inserted) >= 2 and _register_clipboard_image(
-                    _paste_registry, images_ref, _paste_counter):
-                # 取消待执行的延迟检测
-                if _pending_check_handle:
-                    try:
-                        _pending_check_handle.cancel()
-                    except Exception:
-                        pass
-                    _pending_check_handle = None
-
-                _paste_counter += 1
-                placeholder = _paste_registry[-1][0]
-                new_text = current[:i] + placeholder + current[j_new + 1:]
-                _buf.on_text_changed -= _on_text_changed
-                try:
-                    _buf.text = new_text
-                    _buf.cursor_position = i + len(placeholder)
-                finally:
-                    _buf.on_text_changed += _on_text_changed
-                _last_text = new_text
-                return
-
-            # 多行插入 → 判定为粘贴，替换为占位符
+            # 多行插入 → 判定为粘贴，替换为占位符（优先处理，避免触发剪贴板检测）
             if '\n' in inserted:
                 # 取消待执行的延迟检测
                 if _pending_check_handle:
@@ -408,7 +384,30 @@ def bordered_prompt(
                     _buf.cursor_position = i + len(placeholder)
                 finally:
                     _buf.on_text_changed += _on_text_changed
+                _last_text = new_text
+                return
 
+            # --- 剪贴板截图检测（P1 多模态）：多字符插入（疑似粘贴）时探测剪贴板位图 ---
+            # 单字符打字不探测，避免每敲一键跑一次 PowerShell 卡输入
+            if len(inserted) >= 2 and _register_clipboard_image(
+                    _paste_registry, images_ref, _paste_counter):
+                # 取消待执行的延迟检测
+                if _pending_check_handle:
+                    try:
+                        _pending_check_handle.cancel()
+                    except Exception:
+                        pass
+                    _pending_check_handle = None
+
+                _paste_counter += 1
+                placeholder = _paste_registry[-1][0]
+                new_text = current[:i] + placeholder + current[j_new + 1:]
+                _buf.on_text_changed -= _on_text_changed
+                try:
+                    _buf.text = new_text
+                    _buf.cursor_position = i + len(placeholder)
+                finally:
+                    _buf.on_text_changed += _on_text_changed
                 _last_text = new_text
                 return
 
