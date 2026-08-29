@@ -37,6 +37,7 @@ from features.memory import (
 from features.plan import PlanModeManager
 from features.skills import discover_skills, build_skills_prompt_section
 from features.worker_manager import WorkerManager
+from core.llm import lookup_extra_body
 from mcp.loader import load_mcp_tools, shutdown_mcp
 from tools import AskUserQuestionTool, BashTool, FileEditTool, FileReadTool, FileWriteTool, GlobTool, GrepTool, \
     WebFetchTool, WebSearchTool
@@ -114,7 +115,7 @@ def _build_selector_client(app_config) -> tuple[Any, str]:
         str  → 复用主对话 client（engine._client），仅换模型名 —— 老行为，零差异。
         dict → 独立构建 client：可选字段 {model, base_url, api_key, timeout, extra_body}，
                省略即回退主对话值；extra_body 提供时合进 model_profiles 的精确 key——
-               _lookup_extra_body 按 key 长度降序匹配，精确模型名最长必然先命中，
+               lookup_extra_body 按 key 长度降序匹配，精确模型名最长必然先命中，
                从而覆盖外层 profile（主模型与 extract 同名时也能单独控制推理强度）。
     """
     extract_cfg = app_config.extract_model
@@ -464,6 +465,12 @@ def main() -> None:
     pt_history = FileHistory(str(history_file))
     mode_ref = [False]  # [False]=normal, [True]=plan，传给 bordered_prompt 共享状态
 
+    # 底部栏思考深度标签：取当前模型匹配 profile 的 reasoning_effort（如 high/max）。
+    # 模型启动后固定（无 /model 切换），算一次即可；未配置（非思考模型）为 None，
+    # 显示层隐藏。qwen 系 thinking_budget 是另一维度，不在此展示。
+    _matched_eb = lookup_extra_body(app_config.model, app_config.model_profiles)
+    effort_value = (_matched_eb or {}).get("reasoning_effort")
+
     def _toggle_plan_mode() -> None:
         """Shift+Tab 回调：真正切换 plan mode，同时同步 UI 状态。
         不打印任何消息——边框颜色变化已是足够的视觉反馈。"""
@@ -515,6 +522,7 @@ def main() -> None:
             images_ref: list[dict] = []
             user_input = bordered_prompt(console, history=pt_history,
                                          completer=slash_completer, mode_ref=mode_ref,
+                                         effort_value=effort_value,
                                          on_mode_toggle=_toggle_plan_mode,
                                          session_title=cmd_ctx.session_store._title,
                                          ctx_usage=ctx_usage,

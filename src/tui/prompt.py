@@ -247,6 +247,7 @@ def bordered_prompt(
     on_mode_toggle=None,                # 切换模式时的回调，由 app.py 传入，负责调用 plan_manager
     session_title: str = "",            # 当前会话标题，/rename 设置后显示在上边框
     ctx_usage: list | None = None,      # [已用 token, 窗口 token]，None 时不显示占用率
+    effort_value: str | None = None,    # 思考深度（reasoning_effort，如 high/max），None 时不显示
     worker_status_cb: Callable[[], list[dict]] | None = None,  # 返回运行中 worker 状态列表，None 时不显示进度面板
     images_ref: list | None = None,     # 图片附件收集列表：提交时图片占位符的 base64 数据按序 append 到这里
 ) -> str:
@@ -510,8 +511,10 @@ def bordered_prompt(
             w = os.get_terminal_size().columns
         except OSError:
             w = 80
-        # 左：模式标签；右：ctx 进度条 + 百分比；中间 ─ 填充。极简：无快捷键提示。
+        # 左：模式标签 + 思考深度；右：ctx 进度条 + 百分比；中间 ─ 填充。极简：无快捷键提示。
         mode_label = f"{_BAR} [Plan Mode] " if mode_ref[0] else f"{_BAR} [Normal] "
+        if effort_value:  # 中点分隔表附属关系（方括号专属模式标签）；U+00B7 计宽 1，len 计宽准确
+            mode_label += f"· {effort_value} "
         base_color = 'fg:ansiyellow' if mode_ref[0] else 'fg:ansiwhite'
 
         # 上下文占用率：使用最近一次 API 返回的 input_tokens（tokenizer 精确计数），

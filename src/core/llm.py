@@ -141,7 +141,7 @@ class OpenAIStream:
                              reasoning_content="".join(self._reasoning_parts) or None)
 
 
-def _lookup_extra_body(model: str, profiles: dict) -> Optional[dict]:
+def lookup_extra_body(model: str, profiles: dict) -> Optional[dict]:
     """按模型名子串匹配 model_profiles，最长 key 优先（精确优先），大小写不敏感。"""
     for key in sorted(profiles, key=len, reverse=True):
         if key.lower() in model.lower():
@@ -172,7 +172,7 @@ class LLMClient:
             # 走 API 默认（非思考）路径——思考模型非流式会全量输出到 reasoning_content、
             # content 为空 → 摘要为空。
             if not strip_thinking:
-                eb = _lookup_extra_body(model, self._model_profiles)
+                eb = lookup_extra_body(model, self._model_profiles)
                 if eb:
                     params["extra_body"] = eb
             resp = self._client.chat.completions.create(**params)
@@ -201,7 +201,7 @@ class LLMClient:
                 messages=_to_openai_messages(system_prompt, messages),
                 temperature=temperature,
                 tools=tools,
-                extra_body=_lookup_extra_body(model, self._model_profiles),
+                extra_body=lookup_extra_body(model, self._model_profiles),
             )
         return NotImplementedError
 
