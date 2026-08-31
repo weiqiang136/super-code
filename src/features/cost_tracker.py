@@ -90,6 +90,19 @@ class CostTracker:
         mu.cache_read_input_tokens += usage.get("cache_read_input_tokens", 0)
         mu.cache_creation_input_tokens += usage.get("cache_creation_input_tokens", 0)
 
+    def totals(self) -> dict:
+        """跨模型汇总的 token 用量（headless 模式结束时输出用）。"""
+        return {
+            "input_tokens": sum(mu.input_tokens for mu in self._model_usage.values()),
+            "output_tokens": sum(mu.output_tokens for mu in self._model_usage.values()),
+            "cache_read_input_tokens": sum(
+                mu.cache_read_input_tokens for mu in self._model_usage.values()
+            ),
+            "cache_creation_input_tokens": sum(
+                mu.cache_creation_input_tokens for mu in self._model_usage.values()
+            ),
+        }
+
     def format_cost(self) -> str:
         """生成可读的 token 用量摘要。"""
         if not self._model_usage:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import json
 import re
 import sys
 import threading
@@ -154,7 +155,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.3.12", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.13", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -419,6 +420,13 @@ def main() -> None:
     if args.print or args.prompt:
         prompt_text = args.prompt or sys.stdin.read()
         run_query(engine, prompt_text, print_mode=args.print, permissions=permissions)
+        # headless 结束时把 token 用量打到 stderr（一行 JSON）——评测 harness
+        # （Harbor adapter）从输出解析；交互模式无此需求，不打扰正常使用
+        if cost_tracker is not None and cost_tracker.has_usage:
+            print(
+                f"[SUPERCODE_USAGE] {json.dumps(cost_tracker.totals())}",
+                file=sys.stderr,
+            )
         return
 
     # Interactive REPL
