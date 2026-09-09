@@ -20,3 +20,6 @@ dist/
 # 临时文件和测试目录
 %TEMP%/
 .supercode-*.py
+
+# 评测数据产物（跑批结果，不入库；adapter 代码 eval/harbor_agent/ 保留）
+eval/results/

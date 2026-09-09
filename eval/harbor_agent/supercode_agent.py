@@ -54,15 +54,27 @@ class SuperCode(BaseInstalledAgent):
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        await self.ensure_system_dependencies(environment, ("python3", "python3-pip"))
+        # 任务容器是精简 python3（无 pip），且 apt 直连官方源在国内会超时。
+        # 镜像可能是 Ubuntu（sources.list）或 Debian 12（deb822 的 *.sources），
+        # 兼容两种布局换阿里云源，再装 python3-pip、走清华 PyPI 源装包。
         await self.exec_as_root(
             environment,
             command=(
-                "pip3 install --break-system-packages "
-                f"-i {_PIP_INDEX} super-code-assistant"
+                "set -euo pipefail; "
+                "if [ -f /etc/apt/sources.list ]; then "
+                "sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; "
+                "s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list; fi; "
+                "find /etc/apt/sources.list.d -type f -name '*.sources' -exec "
+                "sed -i 's|deb.debian.org|mirrors.aliyun.com|g; "
+                "s|security.debian.org|mirrors.aliyun.com|g; "
+                "s|archive.ubuntu.com|mirrors.aliyun.com|g' {} +; "
+                "apt-get update -qq && apt-get install -y -qq python3-pip && "
+                "python3 -m pip install --break-system-packages "
+                f"-i {_PIP_INDEX} super-code-assistant && "
+                "super-code --help > /dev/null"
             ),
+            timeout_sec=900,
         )
-        await self.exec_as_agent(environment, command="super-code --help > /dev/null")
 
     @override
     @with_prompt_template
