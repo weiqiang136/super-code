@@ -2,6 +2,8 @@
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, "src")
 
 from tui.app import _assemble_image_content, _IMAGE_PLACEHOLDER_RE
@@ -89,6 +91,232 @@ def test_extract_image_paths_rejects(tmp_path):
     assert _extract_image_paths(str(tmp_path / "missing.png")) == []  # 文件不存在
     assert _extract_image_paths("随便一句话没有路径") == []
     assert _extract_image_paths("看一下 https://x.com/foo.png") == []  # URL 非本地文件
+
+
+# ── macOS 终端拖拽转义路径回归（v3.3.13：拖拽后变纯文本、模型看不到图）──────
+
+# 事故真实形态：终端把路径里的空格/括号转义成 \  \(  \)
+MACOS_ESCAPED = r"/Users/haning/Downloads/图片/深度分析-整体\ \(4\)\ \(1\).png"
+MACOS_REAL = "/Users/haning/Downloads/图片/深度分析-整体 (4) (1).png"
+
+
+def test_candidate_macos_escaped_path(monkeypatch):
+    """纯函数：macOS 转义路径被完整吃下并反转义为真实路径。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    cands = prompt._candidate_image_paths(MACOS_ESCAPED)
+    assert MACOS_REAL in cands
+    assert all("\\ " not in c and "\\(" not in c for c in cands)  # 无残留转义
+
+
+def test_candidate_macos_escaped_path_then_natural_language(monkeypatch):
+    """macOS 转义路径 + 后续中文：路径候选必须是完整路径，不得拼上中文（旧方案必挂）。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    cands = prompt._candidate_image_paths(MACOS_ESCAPED + " 图片里面有什么")
+    assert MACOS_REAL in cands
+    assert MACOS_REAL + " 图片里面有什么" not in cands
+    assert MACOS_REAL + "图片里面有什么" not in cands
+
+
+def test_candidate_macos_multiple_escaped(monkeypatch):
+    """macOS 多图：两个转义路径用未转义空格分隔 → 都还原且顺序正确。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    d1 = "/Users/haning/Downloads/图 一.png"
+    d2 = "/Users/haning/Downloads/图 二.jpg"
+    text = r"/Users/haning/Downloads/图\ 一.png" + " " + r"/Users/haning/Downloads/图\ 二.jpg"
+    cands = prompt._candidate_image_paths(text)
+    assert d1 in cands and d2 in cands
+    assert cands.index(d1) < cands.index(d2)
+
+
+def test_candidate_macos_single_quote_wrapped(monkeypatch):
+    """macOS 拖拽的单引号包裹变体：'路径 带空格.png' → 取引号内全文。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    cands = prompt._candidate_image_paths("'/Users/haning/Downloads/My Pic.png'")
+    assert "/Users/haning/Downloads/My Pic.png" in cands
+
+
+def test_extract_image_paths_macos_escaped(monkeypatch):
+    """集成：macOS 转义路径经扩展名+存在性校验后被识别（isfile 打桩，跨平台确定）。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == MACOS_REAL)
+    assert prompt._extract_image_paths(MACOS_ESCAPED) == [MACOS_REAL]
+
+
+def test_extract_image_paths_macos_escaped_then_natural_language(monkeypatch):
+    """集成：转义路径后跟自然语言 → 仍解析出图片（本次事故场景）。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == MACOS_REAL)
+    assert prompt._extract_image_paths(MACOS_ESCAPED + " 图片里面有什么") == [MACOS_REAL]
+
+
+def test_extract_image_paths_macos_real_tmp(tmp_path, monkeypatch):
+    """集成：tmp_path 造含空格/括号真实文件，构造 macOS 转义形态 → 解析出真实路径。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    p = tmp_path / "depth (4) (1).png"
+    p.write_bytes(b"x")
+    # 去盘符转 POSIX，模拟 macOS 绝对路径风格（Windows 上 / 指向当前盘根）
+    _drive, _sep, rest = str(p).replace("\\", "/").partition("/")
+    real = "/" + rest
+    escaped = real.replace(" ", "\\ ").replace("(", "\\(").replace(")", "\\)")
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == real)
+    assert prompt._candidate_image_paths(escaped)[0] == real
+    assert prompt._extract_image_paths(escaped) == [real]
+
+
+def test_extract_image_paths_windows_not_unescaped(tmp_path, monkeypatch):
+    """Windows 不回归：_IS_WINDOWS=True 时反斜杠不被反转义，C:\\ 与引号用例全通。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", True)
+    a = tmp_path / "a.png"
+    b_space = tmp_path / "b b.jpg"
+    a.write_bytes(b"x")
+    b_space.write_bytes(b"x")
+    assert prompt._extract_image_paths(str(a)) == [str(a)]
+    assert prompt._extract_image_paths(f'"{a}" "{b_space}"') == [str(a), str(b_space)]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="反斜杠分隔符仅 Windows")
+def test_windows_path_unescape_would_break(tmp_path, monkeypatch):
+    """反证：Windows 下若误开反转义，C:\\ 分隔符会被吃掉 → 证明平台门控必要。"""
+    from tui import prompt
+    a = tmp_path / "a.png"
+    a.write_bytes(b"x")
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)   # 错误的平台判定
+    assert prompt._extract_image_paths(str(a)) == []    # C:\Users → C:Users，isfile 失败
+
+
+def test_extract_image_paths_rejects_non_windows(tmp_path, monkeypatch):
+    """反向：非图片扩展名 / 不存在 / URL / 纯中文 → []（非 Windows 下同样成立）。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    txt = tmp_path / "note.txt"
+    txt.write_text("x")
+    assert prompt._extract_image_paths(str(txt)) == []
+    assert prompt._extract_image_paths(str(tmp_path / "missing.png")) == []
+    assert prompt._extract_image_paths("随便一句话没有路径") == []
+    assert prompt._extract_image_paths("看一下 https://x.com/foo.png") == []
+
+
+# ── 占位符替换必须按原文区间（旧 str.replace(真实路径) 在转义原文上静默失配）──
+
+def _patch_register(monkeypatch, prompt, seen: list):
+    """把 _register_image 换成不碰文件系统的假实现：记录收到的路径 + 产出占位符条目。"""
+    def fake(path, registry, images_ref, counter):
+        seen.append(path)
+        name = os.path.basename(path)
+        registry.append((f"[🖼 {counter}: {name}]", name, "image"))
+        images_ref.append({"media_type": "image/png", "data": "FAKE"})
+        return True
+    monkeypatch.setattr(prompt, "_register_image", fake)
+
+
+def _rewrite_like_delayed_check(prompt, text):
+    """复刻 prompt.py `_delayed_check` 的重写链路，返回 (重写后文本, images_ref)。"""
+    registry: list = []
+    images_ref: list = []
+    edits: list = []
+    counter = 0
+    for start, end, img_path in prompt._image_path_spans(text):
+        if prompt._register_image(img_path, registry, images_ref, counter):
+            counter += 1
+            edits.append((start, end, registry[-1][0]))
+    return prompt._splice_spans(text, edits), images_ref
+
+
+def test_old_replace_approach_fails_on_escaped_path():
+    """反证：str.replace(真实路径) 在 macOS 转义原文上必然不命中——这正是被替换掉的旧逻辑。"""
+    assert MACOS_ESCAPED.replace(MACOS_REAL, "[🖼 1: x]") == MACOS_ESCAPED
+
+
+def test_image_path_spans_covers_raw_escaped_span(monkeypatch):
+    """区间必须是**原文**（转义形态）的区间，路径则已反转义。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == MACOS_REAL)
+    assert prompt._image_path_spans(MACOS_ESCAPED) == [(0, len(MACOS_ESCAPED), MACOS_REAL)]
+
+
+def test_splice_spans_keeps_trailing_text(monkeypatch):
+    """转义路径 + 后跟中文 → 占位符吃掉整段转义区间，中文原样保留。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == MACOS_REAL)
+    text = MACOS_ESCAPED + " 图片里面有什么"
+    edits = [(s, e, "[🖼 0: png]") for s, e, _p in prompt._image_path_spans(text)]
+    assert prompt._splice_spans(text, edits) == "[🖼 0: png] 图片里面有什么"
+
+
+def test_splice_spans_multiple_in_order(monkeypatch):
+    """多图：区间互不重叠、替换后偏移正确累加，顺序不乱。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    real1 = "/Users/haning/Downloads/图 一.png"
+    real2 = "/Users/haning/Downloads/图 二.jpg"
+    monkeypatch.setattr(os.path, "isfile", lambda q: q in (real1, real2))
+    esc1 = real1.replace(" ", "\\ ")
+    esc2 = real2.replace(" ", "\\ ")
+    text = f"{esc1} {esc2} 对比一下"
+    spans = prompt._image_path_spans(text)
+    assert [(s, e) for s, e, _p in spans] == [(0, len(esc1)), (len(esc1) + 1, len(esc1) + 1 + len(esc2))]
+    edits = [(s, e, f"[🖼 {i}: x]") for i, (s, e, _p) in enumerate(spans)]
+    assert prompt._splice_spans(text, edits) == "[🖼 0: x] [🖼 1: x] 对比一下"
+
+
+def test_full_chain_escaped_path_reaches_model(monkeypatch):
+    """端到端（本次事故场景）：转义路径 + 中文 → 重写后占位符就位 → 组装出 image block。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", False)
+    monkeypatch.setattr(os.path, "isfile", lambda q: q == MACOS_REAL)
+    seen: list = []
+    _patch_register(monkeypatch, prompt, seen)
+    text = MACOS_ESCAPED + " 图片里面有什么"
+    rewritten, images_ref = _rewrite_like_delayed_check(prompt, text)
+    assert seen == [MACOS_REAL]                       # 喂给读取层的是反转义后的真实路径
+    content = _assemble_image_content("", rewritten, images_ref)
+    assert isinstance(content, list)                  # 拿到 list = 真的有图，而非降级纯文本
+    assert sum(b["type"] == "image" for b in content) == 1
+    assert any(b["type"] == "text" and b["text"] == "图片里面有什么" for b in content)
+
+
+def test_full_chain_windows_path_unaffected(tmp_path, monkeypatch):
+    """Windows 回归：真实路径直接出现在原文里，区间替换同样命中。
+
+    路径不含空格——未加引号的含空格 Windows 路径本就无法与自然语言切分（既有局限，
+    非本次改动引入）；含空格场景由下面带引号的用例覆盖。
+    """
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", True)
+    p = tmp_path / "shot.png"
+    p.write_bytes(b"x")
+    seen: list = []
+    _patch_register(monkeypatch, prompt, seen)
+    text = f"看下 {p} 谢谢"
+    rewritten, images_ref = _rewrite_like_delayed_check(prompt, text)
+    assert seen == [str(p)]
+    assert rewritten == "看下 [🖼 0: shot.png] 谢谢"
+    assert len(_assemble_image_content("", rewritten, images_ref)) == 3
+
+
+def test_full_chain_windows_quoted_path_with_space(tmp_path, monkeypatch):
+    """Windows 含空格路径：终端加引号包裹 → 区间含引号本身，替换后不留引号残骸。"""
+    from tui import prompt
+    monkeypatch.setattr(prompt, "_IS_WINDOWS", True)
+    p = tmp_path / "shot (1).png"
+    p.write_bytes(b"x")
+    seen: list = []
+    _patch_register(monkeypatch, prompt, seen)
+    text = f'看下 "{p}" 谢谢'
+    rewritten, images_ref = _rewrite_like_delayed_check(prompt, text)
+    assert seen == [str(p)]
+    assert rewritten == "看下 [🖼 0: shot (1).png] 谢谢"
+    assert sum(b["type"] == "image" for b in _assemble_image_content("", rewritten, images_ref)) == 1
 
 
 def test_register_multiple_images(tmp_path):

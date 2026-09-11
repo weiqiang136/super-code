@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from prompt_toolkit.history import FileHistory
-from rich.console import Console
 from rich.markup import escape as _escape
 
 from commands import CommandContext, handle_command, is_known_command, parse_command
@@ -23,6 +22,7 @@ from core.engine import Engine
 from core.llm import LLMClient
 from core.model_capabilities import supports_vision
 from core.permissions import PermissionChecker
+from core.safe_console import SafeConsole
 from core.session import SessionStore
 from features.compact import CompactService, get_context_window, should_compact
 from features.coordinator import (
@@ -47,7 +47,7 @@ from tui.prompt import bordered_prompt, slash_completer
 from tui.query import run_query
 from tui.rendering import SpinnerManager, SPINNER_MEMORY
 
-console = Console()
+console = SafeConsole()
 
 _DOUBLE_PRESS_TIMEOUT = 0.8
 
@@ -155,7 +155,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.3.13", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.14", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -574,9 +574,9 @@ def main() -> None:
             result = subprocess.run(user_input[1:].lstrip(),
                                     shell=True, capture_output=True, text=True)
             if result.stdout:
-                console.print(result.stdout.rstrip())
+                console.print(_escape(result.stdout.rstrip()))
             if result.stderr:
-                console.print(f"[red]{result.stderr.rstrip()}[/red]")
+                console.print(f"[red]{_escape(result.stderr.rstrip())}[/red]")
             continue
 
         if user_input.lower() in ("exit", "quit", "/exit", "/quit"):

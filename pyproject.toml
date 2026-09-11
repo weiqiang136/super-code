@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "super-code-assistant"
-version = "3.3.13"
+version = "3.3.14"
 description = "Minimal AI coding assistant"
 readme = "README.md"
 requires-python = ">=3.10"

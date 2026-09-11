@@ -505,10 +505,10 @@ def _cmd_compact(ctx: CommandContext, args: str) -> None:
     except EmptySummaryError as exc:
         # 摘要 LLM 返回空文本（重试后仍空）：中止压缩，历史保持原样。
         # 覆盖写发生在下面，异常时不会执行 → 不会用空摘要吞掉历史（2026-08-16 事故）。
-        ctx.console.print(f"[red]✗ Compaction aborted:[/red] {exc}")
+        ctx.console.print(f"[red]✗ Compaction aborted:[/red] {_escape(str(exc))}")
         return
     except Exception as exc:
-        ctx.console.print(f"[red]✗ Compaction failed:[/red] {exc}")
+        ctx.console.print(f"[red]✗ Compaction failed:[/red] {_escape(str(exc))}")
         return
     ctx.engine.set_messages(new_msgs)
 
@@ -708,7 +708,7 @@ def _open_in_editor(ctx: CommandContext, path: Path) -> None:
             "Set $EDITOR to a valid command (e.g. `code -w`, `nano`)."
         )
     except Exception as exc:
-        ctx.console.print(f"[red]Failed to launch editor:[/red] {exc}")
+        ctx.console.print(f"[red]Failed to launch editor:[/red] {_escape(str(exc))}")
 
 
 def _cmd_dream(ctx: CommandContext, args: str) -> None:
@@ -734,7 +734,7 @@ def _cmd_dream(ctx: CommandContext, args: str) -> None:
         record_consolidation(memory_dir)
         ctx.console.print("[green]✓[/green] Dream consolidation complete.")
     except Exception as exc:
-        ctx.console.print(f"[red]Dream failed: {exc}[/red]")
+        ctx.console.print(f"[red]Dream failed: {_escape(str(exc))}[/red]")
     finally:
         release_lock(memory_dir)
 

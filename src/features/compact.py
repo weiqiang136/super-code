@@ -19,7 +19,7 @@ COMPACT_MAX_OUTPUT_TOKENS = 16_384        # 摘要最大输出 token 数
 # 估算函数 estimate_tokens 已 CJK-aware（中文 1 字 ≈ 1 token），中文重的会话也能
 # 被正确触发。
 COMPACT_TRIGGER_RATIO = 0.8
-DEFAULT_CONTEXT_WINDOW = 128_000        # 未识别模型的兜底窗口
+DEFAULT_CONTEXT_WINDOW = 1_000_000      # 未识别模型的兜底窗口（2026-09 起默认按 1M 估）
 # 已知模型 → context window 映射。匹配规则：先精确，再按 key 长度倒序做前缀匹配，
 # 让 "gpt-4-32k-0613" 先命中 "gpt-4-32k" 而不是 "gpt-4"。
 MODEL_CONTEXT_WINDOWS: dict[str, int] = {

@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import sys
 
-from rich.console import Console
 from rich.markup import escape as _escape
 
 from core.engine import AbortedError, Engine, _REJECT_MESSAGE, _SIBLING_REJECT_MESSAGE
+from core.safe_console import SafeConsole
 from tui.keylistener import EscListener
 from tui.rendering import (StreamingMarkdown, SpinnerManager, tool_preview, collapsed_tool_summary,
                            SPINNER_THINKING, SPINNER_COMPACT, SPINNER_PREPARING, SPINNER_WORKING)
 
-console = Console()
+console = SafeConsole()
 
 
 def run_query(engine: Engine, user_input: str, print_mode: bool,

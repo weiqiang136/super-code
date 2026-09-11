@@ -21,10 +21,12 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
 from rich.cells import cell_len
-from rich.console import Console
+from rich.markup import escape as _escape
 from rich.text import Text
 
-console = Console()
+from core.safe_console import SafeConsole
+
+console = SafeConsole()
 
 # 图片拖拽支持（P0 多模态）：扩展名 → MIME 类型
 _IMAGE_EXT_TO_MIME = {
@@ -37,10 +39,113 @@ _IMAGE_EXT_TO_MIME = {
 }
 _IMAGE_MAX_BYTES = 8 * 1024 * 1024   # 图片 8MB 上限，防止 base64 撑爆内存/上下文
 
-# Windows 绝对路径正则：盘符 + 冒号 + 反斜杠开头（如 C:\...）
+# Windows 绝对路径正则：盘符 + 冒号 + 反斜杠/正斜杠开头（如 C:\...）
 _WIN_PATH_RE = re.compile(r'[A-Za-z]:[/\\][^\s]*')
-# 多路径解析：先匹配引号包裹（含空格路径），再匹配裸词（空格分隔）。支持多文件拖入。
-_IMAGE_PATHS_RE = re.compile(r'"([^"]+)"|(\S+)')
+# POSIX 绝对路径 token：从 / 开始，允许「非空白非引号非反斜杠字符」或「\ + 任意字符」（吃终端转义的
+# `\ `/`\(`），遇到未转义的空白/引号即终止。字符类必须排除反斜杠，否则 `\ ` 里的 `\` 会被单字符分支先
+# 吃掉、导致在转义空格处提前断开。这是 macOS 拖拽 `\ \(4\)\ \(1\)` 能被完整吃下、且在路径后真实空格处停下的关键。
+_POSIX_PATH_RE = re.compile(r'/(?:[^ \t\n"\'\\]|\\.)+')
+# 引号包裹（含空格路径）：双引号 / 单引号（终端拖拽两种变体）。
+_QUOTED_RE = re.compile(r'"([^"]+)"|\'([^\']+)\'')
+# 兜底裸词扫描（空格分隔的裸路径），保证既有「引号+裸词混合 / 多文件空格分隔」用例不回归。
+_BARE_RE = re.compile(r'\S+')
+
+# 当前平台是否 Windows。非 Windows（macOS/Linux）下终端拖拽会把空格/括号转义为 `\ `/`\(`，
+# 需反转义还原真实路径；Windows 下反斜杠是路径分隔符，绝对不能反转义。
+# 模块级常量，测试可 monkeypatch。
+_IS_WINDOWS = sys.platform == "win32"
+
+
+def _iter_path_candidates(text: str) -> list[tuple[int, int, str]]:
+    """产出全部路径候选 (start, end, 原文片段)，含引号包裹与终端转义形态，未做清洗。
+
+    顺序固定为 引号 → POSIX → Windows → 裸词 兜底，与区间起点排序配合可保持出现顺序稳定。
+    引号命中的区间**含引号本身**，这样调用方按区间拼接时能一并替换掉引号。
+    """
+    matches: list[tuple[int, int, str]] = []
+    for m in _QUOTED_RE.finditer(text):
+        matches.append((m.start(), m.end(), m.group(1) or m.group(2)))
+    for regex in (_POSIX_PATH_RE, _WIN_PATH_RE, _BARE_RE):
+        for m in regex.finditer(text):
+            matches.append((m.start(), m.end(), m.group(0)))
+    return matches
+
+
+def _normalize_candidate(raw: str) -> str:
+    """候选片段 → 真实路径：剥引号/空白；非 Windows 下反转义终端拖拽的 `\\X` -> `X`。"""
+    seg = raw.strip().strip('"').strip("'").strip()
+    if not _IS_WINDOWS:
+        seg = re.sub(r'\\(.)', r'\1', seg)
+    return seg
+
+
+def _is_existing_image(path: str) -> bool:
+    """扩展名在白名单内且文件真实存在（URL 因 `os.path.isfile` 为假被排除）。"""
+    return bool(path) and os.path.splitext(path)[1].lower() in _IMAGE_EXT_TO_MIME \
+        and os.path.isfile(path)
+
+
+def _candidate_image_paths(text: str) -> list[str]:
+    r"""按顺序收集文本中的图片路径候选串（纯函数，不碰文件系统，便于跨平台测试）。
+
+    覆盖：引号包裹（含空格路径）、POSIX 绝对路径（含 macOS 终端转义 `\ ` `\(`）、
+    Windows 盘符路径、以及空格分隔的裸路径兜底。候选按在原文中的出现位置排序并去重保序。
+    注意：**未加引号且含空格**的 Windows 路径本就无法与自然语言切分（`\S+` 会在空格断开），
+    需由终端加引号或走转义形态；此处不做启发式猜测，避免误吞用户文本。
+    """
+    results: list[str] = []
+    seen: set[str] = set()
+    for _start, _end, raw in sorted(_iter_path_candidates(text), key=lambda t: t[0]):
+        seg = _normalize_candidate(raw)
+        if seg and seg not in seen:
+            seen.add(seg)
+            results.append(seg)
+    return results
+
+
+def _image_path_spans(text: str) -> list[tuple[int, int, str]]:
+    """返回原文中真实存在的图片路径区间 (start, end, 真实路径)，按出现顺序且互不重叠。
+
+    为什么要区间而不是路径字符串：非 Windows 下原文是终端转义形态（`\\ `、`\\(`），
+    与反转义后的真实路径**不相等**，用 `str.replace(真实路径, 占位符)` 必然静默失配
+    → 图片进了 registry 却没有占位符 → 模型看不到图（2026-09 macOS 拖拽丢图）。
+    区间法同样免疫「同一路径出现两次」「真实路径是别处文本子串」。
+
+    同一位置常被多条正则命中（POSIX 全路径 vs 裸词碎片）：按起点升序、区间长的优先，
+    起点落在已选区间内的候选（被吃掉了前缀的碎片）直接丢弃。
+    """
+    spans: list[tuple[int, int, str]] = []
+    last_end = -1
+    for start, end, raw in sorted(_iter_path_candidates(text),
+                                 key=lambda t: (t[0], -(t[1] - t[0]))):
+        if start < last_end:
+            continue
+        path = _normalize_candidate(raw)
+        if not _is_existing_image(path):
+            continue
+        spans.append((start, end, path))
+        last_end = end
+    return spans
+
+
+def _splice_spans(text: str, edits: list[tuple[int, int, str]]) -> str:
+    """按区间把 text 中的片段替换为指定文本。
+
+    edits 必须按 start 升序且互不重叠（`_image_path_spans` 保证）；先出现的替换会改变
+    后续区间的偏移，故逐条累加 offset。
+    """
+    if not edits:
+        return text
+    ordered = sorted(edits, key=lambda t: t[0])
+    out = text
+    offset = 0
+    for start, end, replacement in ordered:
+        s, e = start + offset, end + offset
+        if not (0 <= s <= e <= len(out)):
+            continue
+        out = out[:s] + replacement + out[e:]
+        offset += len(replacement) - (e - s)
+    return out
 
 
 def _extract_image_paths(text: str) -> list[str]:
@@ -48,24 +153,7 @@ def _extract_image_paths(text: str) -> list[str]:
 
     返回存在的图片路径列表（扩展名 + 存在性校验），非图片/不存在路径静默忽略。
     """
-    results = []
-
-    # 策略1：先尝试提取 Windows 绝对路径（C:\...）
-    for match in _WIN_PATH_RE.finditer(text):
-        candidate = match.group(0).strip()
-        ext = os.path.splitext(candidate)[1].lower()
-        if ext in _IMAGE_EXT_TO_MIME and os.path.isfile(candidate):
-            results.append(candidate)
-
-    # 策略2：如果没找到，再用通用正则（引号包裹 + 空格分隔）
-    if not results:
-        for quoted, bare in _IMAGE_PATHS_RE.findall(text):
-            candidate = (quoted or bare).strip().strip('"').strip("'").strip()
-            ext = os.path.splitext(candidate)[1].lower()
-            if ext in _IMAGE_EXT_TO_MIME and os.path.isfile(candidate):
-                results.append(candidate)
-
-    return results
+    return [path for path in _candidate_image_paths(text) if _is_existing_image(path)]
 
 
 def _register_image_data(media_type: str, data: str, name: str,
@@ -91,7 +179,7 @@ def _register_image(path: str, registry: list, images_ref: list, counter: int) -
     except OSError:
         return False
     if size > _IMAGE_MAX_BYTES:
-        console.print(f"[yellow]⚠ 图片超过 8MB，未附加：{os.path.basename(path)}[/yellow]")
+        console.print(f"[yellow]⚠ 图片超过 8MB，未附加：{_escape(os.path.basename(path))}[/yellow]")
         return False
     try:
         with open(path, "rb") as fh:
@@ -429,17 +517,18 @@ def bordered_prompt(
             if not text.strip():
                 return
 
-            # 检测完整文本中的图片路径
-            img_paths = _extract_image_paths(text)
-            if img_paths:
-                new_text = text
-                for img_path in img_paths:
-                    if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
-                        _paste_counter += 1
-                        placeholder = _paste_registry[-1][0]
-                        # 替换路径为占位符，保留其他文本
-                        new_text = new_text.replace(img_path, placeholder)
+            # 检测完整文本中的图片路径。按**原文区间**替换成占位符，不用
+            # str.replace(真实路径)：非 Windows 下原文是终端转义形态（`\ `/`\(`），
+            # 与反转义后的真实路径不相等，replace 会静默不命中 → 图片只进 registry、
+            # 不附给模型（macOS 拖拽丢图）。
+            span_edits: list[tuple[int, int, str]] = []
+            for start, end, img_path in _image_path_spans(text):
+                if _register_image(img_path, _paste_registry, images_ref, _paste_counter):
+                    _paste_counter += 1
+                    span_edits.append((start, end, _paste_registry[-1][0]))
 
+            if span_edits:
+                new_text = _splice_spans(text, span_edits)
                 if new_text != text:
                     _buf.on_text_changed -= _on_text_changed
                     try:
