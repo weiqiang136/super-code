@@ -1,0 +1,78 @@
+tests/test_multimodal.py
+  s_8a118a2b56a7b5::t_009146144ae37b 207-220,222-288,294-295,297-302,304,320-321
+  s_8a118a2b56a7b5::t_e21dce5129737b 289-293,296,303,305-319
+  s_e5cdf58d0cd4c8::t_df814923f1205e 5-6
+  s_8a118a2b56a7b5::t_057f0d74d5ee8e 221
+  s_e5cdf58d0cd4c8::t_294b4550eb958a 96-206
+src/core/permissions.py
+  s_61c472b4cf74aa::t_42a0161994c0f6 97-98,100-101
+  s_61c472b4cf74aa::t_159f4ef036d493 7-8
+  s_61c472b4cf74aa::t_aaa8072cb57a97 115,122,132,135,145,149
+src/tui/app.py
+  s_61c472b4cf74aa::t_fd9b5874cfbda6 577,579
+  s_61c472b4cf74aa::t_db1c658ffa47d1 25
+src/tui/prompt.py
+  s_8a118a2b56a7b5::t_65e9db0ddf7571 89,93-94
+  s_61c472b4cf74aa::t_87bd51fbc58133 182
+  s_8a118a2b56a7b5::t_880345d3f9cf2c 520-528,530-531
+  s_8a118a2b56a7b5::t_3b2519ceaf2e1c 59-87,92,98-99,104-119,121-132,134-148,156
+  s_e5cdf58d0cd4c8::t_bf22b6103be585 44-47
+  s_61c472b4cf74aa::t_4f3b754859bcdc 27-29,52,57-58,95,103,529
+  s_e5cdf58d0cd4c8::t_760432bcaa1245 42,48-51,53-56,88,90-91,96-97,100-102,133
+  s_8a118a2b56a7b5::t_8c7f66147c17dc 120
+  s_61c472b4cf74aa::t_d19cb4c5f586ee 24
+src/features/compact.py
+  s_a44a92e7c3895b::t_70905ff0dcb02c 22
+src/tui/query.py
+  s_61c472b4cf74aa::t_d55cd32f61c66f 9,14
+src/tools/ask_user.py
+  s_61c472b4cf74aa::t_8171703604a05b 82-85,88
+src/commands/__init__.py
+  s_61c472b4cf74aa::t_788d327edadcc2 508,511
+  s_61c472b4cf74aa::t_36bb430c758f4f 737
+  s_61c472b4cf74aa::t_121fb275e890c7 711
+src/tools/plan_tools.py
+  s_61c472b4cf74aa::t_56aca30aa3e869 60-61
+src/core/safe_console.py
+  s_61c472b4cf74aa::t_034e1abe656338 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f9620f2dca101e5acc86d0741d6019aa64c3f16d",
+  "prompts": {},
+  "sessions": {
+    "s_61c472b4cf74aa": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "619297be580d4a409104db2f38984b77",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_8a118a2b56a7b5": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "1a499d5f96444992bacf217de807e592",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_a44a92e7c3895b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "b5dbbe9f417e4019a167e987a95bac6d",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_e5cdf58d0cd4c8": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "worker-21dbb0e2",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
