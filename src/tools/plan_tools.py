@@ -57,8 +57,8 @@ class ExitPlanModeTool(Tool):
         # 这样设计的核心动机：让"模式切换"始终是用户的显式操作，杜绝 LLM 通过工具
         # 自主修改 engine 配置而引发的一系列时序/历史一致性问题
         # （参见 commit ee0fbc7、5a7d478、4333ff8 修复过的 bug：API 400、spinner 卡死等）。
-        from rich.console import Console
-        Console().print(
+        from core.safe_console import SafeConsole
+        SafeConsole().print(
             "\n[bold green]✓ Plan is ready for your review.[/bold green]\n"
             "[dim]Press Shift+Tab to exit plan mode and start implementation, "
             "or send a message to refine the plan.[/dim]\n"

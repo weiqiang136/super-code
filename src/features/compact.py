@@ -9,7 +9,7 @@ from core.llm import LLMClient
 # Constants
 # ---------------------------------------------------------------------------
 
-CHARS_PER_TOKEN = 4                     # 非 CJK 字符的粗估比例（约 4 字符 ≈ 1 token）
+CHARS_PER_TOKEN = 3                     # 非 CJK 字符的粗估比例；改3比4更保守，减少代码/JSON 场景低估
 MIN_RECENT_MESSAGES = 6                 # 至少保留最近 N 条消息不压缩
 MIN_RECENT_TOKENS = 10_000              # 至少保留最近 N 个 token 不压缩
 COMPACT_MAX_OUTPUT_TOKENS = 16_384        # 摘要最大输出 token 数
@@ -19,7 +19,7 @@ COMPACT_MAX_OUTPUT_TOKENS = 16_384        # 摘要最大输出 token 数
 # 估算函数 estimate_tokens 已 CJK-aware（中文 1 字 ≈ 1 token），中文重的会话也能
 # 被正确触发。
 COMPACT_TRIGGER_RATIO = 0.8
-DEFAULT_CONTEXT_WINDOW = 128_000        # 未识别模型的兜底窗口
+DEFAULT_CONTEXT_WINDOW = 1_000_000      # 未识别模型的兜底窗口（2026-09 起默认按 1M 估）
 # 已知模型 → context window 映射。匹配规则：先精确，再按 key 长度倒序做前缀匹配，
 # 让 "gpt-4-32k-0613" 先命中 "gpt-4-32k" 而不是 "gpt-4"。
 MODEL_CONTEXT_WINDOWS: dict[str, int] = {
@@ -32,6 +32,12 @@ MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "glm-4.7": 200_000,  # 最新旗舰模型
     "glm-4.7-air": 200_000,  # 轻量版但窗口相同
     "glm-4.7-flash": 200_000,  # 极速版但窗口相同
+
+    # GLM 5 系列（2026 官方文档实测：5/5.1/5-Turbo=200K，5.2/5.3=1M）
+    # 前缀匹配按 key 长度倒序：glm-5.3 / glm-5.2 先于 glm-5 命中，不会被误降级
+    "glm-5": 200_000,       # 前缀覆盖 glm-5.1 / glm-5-turbo（官方均 200K，输出 128K）
+    "glm-5.2": 1_000_000,   # 1M 旗舰
+    "glm-5.3": 1_000_000,   # 1M 旗舰（API 即将上线）
 
     # Claude (Anthropic) - 4.6 及以上版本支持 1M (beta)
     "claude-opus-4-6": 1_000_000,
@@ -55,6 +61,22 @@ COMPACT_BOUNDARY_MARKER = "<!-- COMPACT_BOUNDARY -->"
 # 兼容老 session：在引入 marker 之前生成的 summary 消息以这个固定前缀开头，
 # 也识别为边界，避免老 session 第一次重新压缩时仍然套娃。
 _LEGACY_SUMMARY_PREFIX = "[This is a summary of the conversation so far"
+
+# ── Tool-result 剪枝（先瘦身再决定是否摘要，2026-08-14 新增） ────────────────
+# 上下文膨胀的元凶常常不是对话本身，而是几个超大工具输出（grep 全仓库 / 读大文件 /
+# bash 大输出）。剪枝在摘要之前先把这些输出的"中间段"裁掉：纯本地零成本、不调 LLM、
+# 保留头尾（开头通常是命令/摘要信息，结尾通常是错误或最终结果，中间多为重复噪音）。
+# 很多场景剪完 token 已低于触发阈值，根本不需要走 LLM 摘要。
+PRUNE_THRESHOLD_CHARS = 8192   # history 中 tool_result 文本超过该长度才剪（≈2-4K token）
+PRUNE_HEAD_CHARS = 4096        # 保留头部字符数
+PRUNE_TAIL_CHARS = 1024        # 保留尾部字符数
+# recent 的剪枝阈值高于 history：recent 是"当前任务正在进行时"的上下文，模型可能
+# 正基于完整输出工作（如刚 grep 完准备写代码）。只有真正的巨型输出（>32K 字符，
+# 占 token 大头）才剪；中等输出（几千到 2 万字符、可能正被分析）保留完整。
+PRUNE_RECENT_THRESHOLD_CHARS = 32768
+# 剪枝标记：替换被裁掉的中间段，提示模型此处内容被截断（与 COMPACT_BOUNDARY_MARKER
+# 同为纯文本嵌入，对 LLM 无副作用、对持久化天然兼容）
+PRUNE_MARKER = "\n\n[... tool result middle pruned ...]\n\n"
 
 # 三明治结构 prompt：
 #   - 首尾各嵌一遍"禁止调工具"硬指令（NO_TOOLS_PREAMBLE/TRAILER）：summarizer 偶尔
@@ -186,6 +208,16 @@ def _is_ptl_error(exc: BaseException) -> bool:
     return any(k in msg for k in _PTL_KEYWORDS)
 
 
+class EmptySummaryError(Exception):
+    """摘要 LLM 返回空文本（思考模型偶发把全部输出放进 reasoning_content、
+    content 为空），重试后仍为空。压缩必须中止而不是拿空摘要覆盖历史。"""
+
+
+# 空摘要重试次数：DeepSeek 等思考模型 content 为空多为偶发，重试 1 次成功率高；
+# 仍空则抛 EmptySummaryError 由调用方中止压缩（历史保持原样）。
+EMPTY_SUMMARY_RETRY_MAX = 1
+
+
 def _drop_head_for_ptl(messages: list[dict]) -> list[dict] | None:
     """从消息列表头部丢一段，重试更小的输入。返回截断后的新列表；无法再截则返回 None。
 
@@ -229,6 +261,11 @@ def _text_of(content: Any) -> str:
                 c = block.get("content", "")
                 if isinstance(c, str):
                     parts.append(c)
+                elif isinstance(c, list):
+                    # tool_result content 可能是 block 列表，如 [{"type":"text","text":"..."}]
+                    for cb in c:
+                        if isinstance(cb, dict):
+                            parts.append(cb.get("text", ""))
                 parts.append(str(block.get("input", "")))
             elif hasattr(block, "text"):
                 parts.append(getattr(block, "text", ""))
@@ -240,16 +277,101 @@ def _text_of(content: Any) -> str:
 # 低估的 bug —— 中文重的会话不会因为估算偏小永远到不了阈值。
 _CJK_RE = re.compile(r"[一-鿿぀-ヿ가-힯豈-﫿]")
 
+# 多模态：OpenAI 高细节图片 token 公式（Aider 同款，models.py:672-701）
+_IMG_TOKEN_TILE = 170            # 每 512×512 tile
+_IMG_TOKEN_FIXED = 85            # 固定开销
+_IMG_TOKEN_FALLBACK = 1100       # 尺寸解析失败兜底（近似 512×512 高细节）
+
+
+def _cjk_token_count(text: str) -> int:
+    if not text:
+        return 0
+    cjk = len(_CJK_RE.findall(text))
+    return cjk + (len(text) - cjk) // CHARS_PER_TOKEN
+
+
+def _estimate_image_tokens(block: dict) -> int:
+    """按 OpenAI 高细节公式估算图片 token：tiles × 170 + 85。
+
+    尺寸来源：零依赖解析 PNG IHDR / JPEG SOF（不引 Pillow）；解析失败走固定兜底。
+    """
+    source = block.get("source", {}) or {}
+    data = source.get("data", "")
+    if not isinstance(data, str) or not data:
+        return _IMG_TOKEN_FALLBACK
+    try:
+        import base64 as _b64
+        raw = _b64.b64decode(data[:8192])   # 只解码前 8KB 足够拿到头部尺寸
+    except Exception:
+        return _IMG_TOKEN_FALLBACK
+    dims = _image_size_from_bytes(raw)
+    if dims is None:
+        return _IMG_TOKEN_FALLBACK
+    width, height = dims
+    # ① 超 2048 缩放 ② 短边缩到 768（与 Aider 一致）
+    max_dim = max(width, height)
+    if max_dim > 2048:
+        scale = 2048 / max_dim
+        width, height = int(width * scale), int(height * scale)
+    min_dim = min(width, height)
+    if min_dim > 0:
+        scale = 768 / min_dim
+        width, height = int(width * scale), int(height * scale)
+    import math
+    tiles = math.ceil(width / 512) * math.ceil(height / 512)
+    return tiles * _IMG_TOKEN_TILE + _IMG_TOKEN_FIXED
+
+
+def _image_size_from_bytes(data: bytes) -> tuple[int, int] | None:
+    """零依赖解析图片尺寸：PNG 读 IHDR、JPEG 扫 SOF 段。失败返回 None。"""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        import struct
+        w, h = struct.unpack(">II", data[16:24])
+        return w, h
+    if data[:2] == b"\xff\xd8":   # JPEG
+        import struct
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3):   # SOF0/1/2/3
+                h, w = struct.unpack(">HH", data[i + 5:i + 9])
+                return w, h
+            if marker in (0xD9, 0xDA):   # EOI / SOS：SOF 已过或缺失
+                break
+            seg_len = struct.unpack(">H", data[i + 2:i + 4])[0]
+            if seg_len < 2:
+                break
+            i += 2 + seg_len
+    return None
+
 
 def estimate_tokens(messages: list[dict]) -> int:
-    """粗略估算 token 数：CJK 字符按 1:1，其它字符按 1:CHARS_PER_TOKEN。"""
+    """粗略估算 token 数：CJK 字符按 1:1，其它字符按 1:CHARS_PER_TOKEN。
+
+    多模态：message content 为 block 列表时逐 block 计——text 走 CJK 规则、
+    image 按 OpenAI 高细节公式（缺失此项会漏算图片 token、压缩触发偏晚）。
+    """
     total = 0
     for m in messages:
-        text = _text_of(m.get("content", ""))
-        if not text:
-            continue
-        cjk = len(_CJK_RE.findall(text))
-        total += cjk + (len(text) - cjk) // CHARS_PER_TOKEN
+        content = m.get("content", "")
+        if isinstance(content, str):
+            total += _cjk_token_count(content)
+        elif isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type")
+                if btype == "text":
+                    total += _cjk_token_count(block.get("text", ""))
+                elif btype == "image":
+                    total += _estimate_image_tokens(block)
+                elif btype == "tool_result":
+                    total += _cjk_token_count(_text_of(block.get("content", "")))
+                else:
+                    total += _cjk_token_count(_text_of(block))
     return total
 
 
@@ -269,16 +391,44 @@ def get_context_window(model: str | None) -> int:
     return DEFAULT_CONTEXT_WINDOW
 
 
+def effective_context_tokens(estimated_now: int,
+                             last_input_tokens: int | None,
+                             estimate_at_request: int | None) -> int:
+    """计算用于压缩判定的有效 token 数。
+
+    - 轮间（estimate_at_request=None）：max(估算, 精确值)。精确值来自上次
+      API 返回的 prompt_tokens，真实但滞后（不含刚生成的输出）；估算实时
+      但对 minified 代码等高密度内容低估 ~20%。取大互补。
+    - 轮内（两个值都传）：精确基线 + 本轮估算增量 = 上次请求的真实体量
+      + 之后新增内容的估算。增量只能用估——新工具结果还没发过请求。
+    """
+    if last_input_tokens and estimate_at_request is not None:
+        growth = max(0, estimated_now - estimate_at_request)
+        return max(estimated_now, last_input_tokens + growth)
+    if last_input_tokens:
+        return max(estimated_now, last_input_tokens)
+    return estimated_now
+
+
 def should_compact(messages: list[dict], model: str | None = None,
                    last_input_tokens: int | None = None) -> bool:
-    """判断是否需要自动压缩对话。阈值按模型 context window 的 COMPACT_TRIGGER_RATIO 计算。"""
+    """判断是否需要自动压缩对话。阈值按模型 context window 的 COMPACT_TRIGGER_RATIO 计算。
+
+    last_input_tokens：最近一次 API 返回的精确 prompt_tokens（cost_tracker），
+    与本地估算取 max——精确值补估算对 minified 代码等高密度内容的低估
+    （实测 glm-5.3-flash 会话估算 669K / 实际 800K，低估 17% 致 80% 不触发）。
+    注意：调用方若在 prune 之后判定（CompactService 的 skip_if_under_threshold
+    路径），不要传精确值——prune 后的 estimate 才是最新信号。
+    """
     # 阈值下限是 MIN_RECENT_TOKENS：避免极小窗口模型（如 gpt-4 8K）算出的阈值太低
     # 导致每轮都触发压缩 → 死循环。
     threshold = max(
         int(get_context_window(model) * COMPACT_TRIGGER_RATIO),
         MIN_RECENT_TOKENS,
     )
-    return estimate_tokens(messages) > threshold
+    effective = effective_context_tokens(
+        estimate_tokens(messages), last_input_tokens, None)
+    return effective > threshold
 
 
 # ---------------------------------------------------------------------------
@@ -369,16 +519,182 @@ def _split_recent(messages: list[dict]) -> tuple[list[dict], list[dict]]:
 
 
 # ---------------------------------------------------------------------------
+# Tool-result 剪枝
+# ---------------------------------------------------------------------------
+
+def _prune_text(text: str, threshold_chars: int = PRUNE_THRESHOLD_CHARS) -> str | None:
+    """单条 tool_result 文本剪枝：超过阈值则保留头尾 + 剪枝标记，否则返回 None。
+
+    纯本地确定性操作：不调 LLM、不改消息结构，只替换超长文本的中间段。
+    Python str 按 Unicode code point 计长与切片，不会拆散 surrogate pair。
+    threshold_chars 可传入不同阈值（recent 用更高阈值，见 PRUNE_RECENT_THRESHOLD_CHARS）。
+    """
+    if len(text) <= threshold_chars:
+        return None
+    return text[:PRUNE_HEAD_CHARS] + PRUNE_MARKER + text[-PRUNE_TAIL_CHARS:]
+
+
+def prune_tool_results(messages: list[dict],
+                       threshold_chars: int = PRUNE_THRESHOLD_CHARS) -> tuple[list[dict], dict]:
+    """剪掉 messages 中所有超长 tool_result 的中间段，返回 (新消息列表, 统计)。
+
+    只处理 user 消息 content 里 type == "tool_result" 的 block，其余消息/block
+    原样保留——消息条数、角色交替、tool_use/tool_result 配对全部不变，
+    不会触发任何 API 400 防御逻辑（_fix_alternation / _to_openai_messages 无感）。
+
+    被剪的 block 是重建的新 dict（浅拷贝 + 替换 content），不污染调用方的原始消息，
+    因此调用方（compact 的 history 切片共享 engine._messages 的 dict）也安全。
+
+    threshold_chars：超过该长度的 tool_result 文本才剪。调用方按场景区分——
+    history 用默认 8192（旧对话，剪了损失小）；recent 用更高的
+    PRUNE_RECENT_THRESHOLD_CHARS（当前任务可能正依赖完整输出）。
+
+    返回的统计 dict：{"pruned": 剪了几条, "chars_removed": 共省多少字符}。
+    """
+    pruned_count = 0
+    chars_removed = 0
+    out: list[dict] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        # 快速跳过：不含 tool_result block 的消息原样保留
+        if not (isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )):
+            out.append(msg)
+            continue
+        new_blocks: list[Any] = []
+        changed = False
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                new_blocks.append(block)      # 非 tool_result block（text/image 等）原样保留
+                continue
+            text = block.get("content", "")
+            if not isinstance(text, str):
+                new_blocks.append(block)      # 非 str content（异常形态）不剪，防御性跳过
+                continue
+            pruned = _prune_text(text, threshold_chars)
+            if pruned is None:
+                new_blocks.append(block)
+                continue
+            # 重建 block：浅拷贝 + 替换 content，保留 tool_use_id/is_error/metadata 等字段
+            new_block = dict(block)
+            new_block["content"] = pruned
+            new_blocks.append(new_block)
+            changed = True
+            pruned_count += 1
+            chars_removed += len(text) - len(pruned)
+        if changed:
+            new_msg = dict(msg)
+            new_msg["content"] = new_blocks
+            out.append(new_msg)
+        else:
+            out.append(msg)
+    stats = {"pruned": pruned_count, "chars_removed": chars_removed}
+    return out, stats
+
+
+# ---------------------------------------------------------------------------
+# 过期 Read 结果回收（stale reclamation）
+# ---------------------------------------------------------------------------
+# 与剪枝（长度维度）不同，这里是"时效维度"的确定性回收：Read 工具的结果若
+# 对应的文件在会话中被后续 Edit/Write 修改过（file_state 版本号已升高），
+# 则旧版本内容对模型已无用（还可能误导它基于旧代码思考），替换为短标记文本。
+# 判定完全基于 file_state 的版本号，不涉及语义猜测 → 零误伤。
+
+STALE_READ_MARKER = (
+    "[此文件已被后续编辑修改，以上内容为旧版本。"
+    "需要最新内容时请用 Read 工具重新读取该文件，或使用 offset/limit 读取指定行区间]"
+)
+
+
+def reclaim_stale_read_results(messages: list[dict], session_id: str) -> tuple[list[dict], dict]:
+    """回收"文件已被后续编辑修改"的过期 Read tool_result，返回 (新消息列表, 统计)。
+
+    只处理 user 消息 content 中 type == "tool_result" 且 metadata 带 snippet_id
+    的 block（即 Read 工具的产物，见 tools/file_read.py 的 snippet_meta）。
+    判定条件：file_state 中该文件的当前 version > snippet 创建时的 file_version
+    （文件被 Edit/Write 修改过）→ 该 block 的 content 替换为短标记文本。
+
+    保留项（配对/结构安全）：
+      - block 的 type / tool_use_id / is_error / metadata 字段原样保留
+      - 消息条数、角色交替、tool_use ↔ tool_result 配对全部不变
+      - 标记文本内含 snippet_id + 行范围，模型需要时可重新 Read / offset-limit 读取
+    不污染输入：重建 block（浅拷贝 + 替换 content），不修改调用方的原始消息。
+
+    fail-closed：无 metadata / 查不到 snippet / 版本不匹配异常 → 一律不回收。
+    统计：{"reclaimed": 回收几条, "chars_removed": 共省多少字符}。
+    """
+    from core.file_state import get_file_version, get_snippet
+
+    reclaimed_count = 0
+    chars_removed = 0
+    out: list[dict] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        # 快速跳过：不含 tool_result block 的消息原样保留
+        if not (isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+        )):
+            out.append(msg)
+            continue
+        new_blocks: list[Any] = []
+        changed = False
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                new_blocks.append(block)      # 非 tool_result block 原样保留
+                continue
+            meta = block.get("metadata")
+            snippet_id = None
+            if isinstance(meta, dict):
+                snippet_id = meta.get("snippet_id")
+            if not snippet_id:
+                new_blocks.append(block)      # 无 snippet 凭证（Bash/Grep 等）→ 不回收
+                continue
+            snippet = get_snippet(session_id, snippet_id)
+            if snippet is None:
+                new_blocks.append(block)      # 查不到（/resume 未重建等）→ fail-closed
+                continue
+            if get_file_version(session_id, snippet.file_path) <= snippet.file_version:
+                new_blocks.append(block)      # 文件未被修改 → 内容仍有效，保留
+                continue
+            # 文件已被后续编辑：替换 content 为短标记（保留定位信息）
+            text = block.get("content", "")
+            if isinstance(text, str):
+                chars_removed += len(text)
+            start = meta.get("start_line") or snippet.start_line
+            end = meta.get("end_line") or snippet.end_line
+            scope = meta.get("scope_type") or snippet.scope_type
+            marker = (
+                f"[snippet_id: {snippet_id} | lines: {start}-{end} | scope: {scope}]\n"
+                + STALE_READ_MARKER
+            )
+            new_block = dict(block)
+            new_block["content"] = marker
+            new_blocks.append(new_block)
+            changed = True
+            reclaimed_count += 1
+        if changed:
+            new_msg = dict(msg)
+            new_msg["content"] = new_blocks
+            out.append(new_msg)
+        else:
+            out.append(msg)
+    stats = {"reclaimed": reclaimed_count, "chars_removed": chars_removed}
+    return out, stats
+
+
+# ---------------------------------------------------------------------------
 # CompactService
 # ---------------------------------------------------------------------------
 
 class CompactService:
     """通过 API 摘要压缩对话上下文。"""
 
-    def __init__(self, client: LLMClient, model: str, effort: str | None = None):
+    def __init__(self, client: LLMClient, model: str,
+                 cost_tracker=None):
         self._client = client
         self._model = model
-        self._effort = effort
+        self._cost_tracker = cost_tracker
 
     def compact(
         self,
@@ -386,8 +702,14 @@ class CompactService:
         system_prompt: str,
         custom_instructions: str = "",
         attachments: list[dict] | None = None,
+        skip_if_under_threshold: bool = False,
     ) -> tuple[list[dict], str]:
         """压缩 messages，返回 (new_messages, summary_text)。
+
+        skip_if_under_threshold：True 时，若剪枝后总 token 已低于自动压缩触发阈值
+        （should_compact 判定），则跳过 LLM 摘要、直接返回剪枝结果——"先瘦身再摘要"，
+        很多场景剪完根本不需要摘要（零 LLM 调用、零成本）。False 时保持旧行为
+        （永远走摘要），供需要强制摘要的调用方使用。
 
         返回的消息列表结构：
             [frozen_prefix（含历次旧边界及其 ack）, user: 新边界+摘要, assistant: 确认,
@@ -425,6 +747,31 @@ class CompactService:
             # 增量太少，没东西可总结：保持 messages 不变
             return list(messages), "(nothing to compact)"
 
+        # 2.5) Tool-result 剪枝：摘要前先裁掉超长工具输出的中间段（先瘦身再摘要）。
+        # history 与 recent 都要剪，但阈值不同：
+        #   - history 用默认阈值 8192 → 摘要 LLM 的输入瘦身（省钱）
+        #   - recent 用高阈值 32768 → 只剪真正的巨型输出（当前任务可能正依赖
+        #     完整输出，如刚 grep 完准备写代码；中型输出保留完整）
+        # 剪枝是纯本地零成本操作；剪完若已低于自动压缩触发阈值，直接跳过 LLM 摘要
+        # 返回剪枝结果——很多"上下文膨胀"的元凶只是几个超大工具输出（常在 recent 里，
+        # _split_recent 按 token 保留尾部会把它们留在 recent），剪完根本不需要摘要。
+        # skip_if_under_threshold 由自动路径（轮间/轮内）传 True。
+        pruned_history, prune_stats = prune_tool_results(history)
+        pruned_recent, recent_stats = prune_tool_results(
+            recent, threshold_chars=PRUNE_RECENT_THRESHOLD_CHARS)
+        total_pruned = prune_stats["pruned"] + recent_stats["pruned"]
+        if total_pruned > 0 and skip_if_under_threshold \
+                and not should_compact(
+                    frozen_prefix + pruned_history + pruned_recent, self._model):
+            summary_note = (
+                f"(prune only: {total_pruned} tool result(s) trimmed, "
+                f"{prune_stats['chars_removed'] + recent_stats['chars_removed']:,} "
+                "chars removed — context under threshold, no summary needed)"
+            )
+            return list(frozen_prefix) + pruned_history + pruned_recent, summary_note
+        history = pruned_history
+        recent = pruned_recent
+
         prompt = COMPACT_PROMPT
         if custom_instructions:
             prompt += f"\n\nAdditional instructions: {custom_instructions}"
@@ -451,7 +798,12 @@ class CompactService:
         # "context_length_exceeded"）。捕获后从头部丢一段重试，最多 PTL_RETRY_MAX 次。
         # 不在此处吞其它异常（鉴权、网络、限流等），避免把无关错误误判成 PTL 反复丢消息。
         # 失败终态：把最后一次异常抛出去，由调用方（tui/app.py 的熔断器或 _cmd_compact）处理。
+        # 空摘要兜底：思考模型偶发 content 为空（输出全在 reasoning_content）。
+        # 不能像以前那样用 "(compact produced empty summary)" 继续落盘——那会把整个
+        # history 覆盖成一行空摘要、信息全丢（2026-08-16 实测事故）。重试
+        # EMPTY_SUMMARY_RETRY_MAX 次仍空则抛 EmptySummaryError，由调用方中止压缩。
         attempt = 0
+        empty_retries = 0
         while True:
             try:
                 response = self._client.create(
@@ -459,9 +811,8 @@ class CompactService:
                     max_tokens=COMPACT_MAX_OUTPUT_TOKENS,
                     system=COMPACT_SYSTEM,
                     messages=cleaned,
-                    effort=self._effort,
+                    strip_thinking=True,  # 摘要不需要推理：剥离思考参数，防 content 为空
                 )
-                break
             except Exception as e:
                 if not _is_ptl_error(e) or attempt >= PTL_RETRY_MAX:
                     raise
@@ -471,21 +822,28 @@ class CompactService:
                     raise
                 cleaned = truncated
                 attempt += 1
+                continue
 
-        # 提取摘要文本
-        summary_text = ""
-        for block in response.content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                summary_text += block.get("text", "")
-            elif hasattr(block, "text"):
-                summary_text += block.text
+            # 提取摘要文本
+            summary_text = ""
+            for block in response.content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    summary_text += block.get("text", "")
+                elif hasattr(block, "text"):
+                    summary_text += block.text
 
-        # Step 4：剥 <analysis> 草稿块、提取 <summary> 正式块。
-        # _format_compact_summary 内部带多级 fallback，对任何输入形态都不会返回 None。
-        summary_text = _format_compact_summary(summary_text)
+            # Step 4：剥 <analysis> 草稿块、提取 <summary> 正式块。
+            # _format_compact_summary 内部带多级 fallback，对任何输入形态都不会返回 None。
+            summary_text = _format_compact_summary(summary_text)
 
-        if not summary_text.strip():
-            summary_text = "(compact produced empty summary)"
+            if summary_text.strip():
+                break
+            if empty_retries >= EMPTY_SUMMARY_RETRY_MAX:
+                raise EmptySummaryError(
+                    "摘要 LLM 连续返回空文本（content 为空，思考模型常见），"
+                    "压缩已中止——历史保持原样，请重试"
+                )
+            empty_retries += 1
 
         # 3) 拼装：frozen_prefix + [新边界 summary, ack] + recent
         # COMPACT_BOUNDARY_MARKER 必须放在 content 最开头（_is_compact_boundary 用 lstrip 后
@@ -526,6 +884,17 @@ class CompactService:
                         "content": "Acknowledged.",
                     })
                 new_messages.append(att)
+
+        # Step 8：压缩成功后更新 cost_tracker：
+        # 1) 记账本次摘要调用的 token（此前非流式 create 不返回 usage，/cost 漏记）；
+        # 2) 覆盖 last_input_tokens 为压缩后新历史的估算值——摘要请求的 input 是压缩前的
+        #    旧历史，add_usage 会记成旧值导致底部栏 ctx 占用率虚高，下一轮对话再纠正为精确值。
+        # 覆盖不依赖 usage：摘要响应没带 usage 时（2026-09-15 esigning 实测，压缩后底栏
+        # 92% 挂了三轮才被下个成功请求纠正），也必须把底栏拉回新历史量级。
+        if self._cost_tracker:
+            if response.usage:
+                self._cost_tracker.add_usage(self._model, response.usage)
+            self._cost_tracker.set_last_input_tokens(estimate_tokens(new_messages))
         return new_messages, summary_text
 
 

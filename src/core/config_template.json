@@ -1,0 +1,47 @@
+{
+  "provider": "openai",
+  "max_tokens": 131072,
+  "timeout": 900.0,
+  "model": "deepseek-v4-flash-vision-exp",
+  "api_key": "YOUR_API_KEY",
+  "base_url": "https://api.deepseek.com",
+  "extract_model": {
+    "model": "deepseek-v4-flash",
+    "extra_body": { "thinking": { "type": "disabled" } }
+  },
+  "coordinator": true,
+  "sandbox": {
+    "enabled": true,
+    "blocked_commands": [],
+    "extra_patterns": [],
+    "excluded_commands": [],
+    "auto_approve_if_sandboxed": false,
+    "allowed_domains": [],
+    "denied_domains": []
+  },
+  "model_profiles": {
+    "deepseek-v4-flash": {
+      "extra_body": {
+        "reasoning_effort": "max",
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    "glm": {
+      "extra_body": {
+        "reasoning_effort": "high",
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    "qwen-max": {
+      "extra_body": {
+        "enable_thinking": true,
+        "thinking_budget": 8192,
+        "reasoning_effort": "high"
+      }
+    }
+  }
+}

@@ -7,7 +7,10 @@ from typing import Iterator, Any
 from core.llm import LLMClient
 from core.tool import Tool, ToolResult
 from core.permissions import PermissionChecker
-from features.compact import estimate_tokens, get_context_window
+from features.compact import (estimate_tokens, effective_context_tokens,
+                               get_context_window,
+                               prune_tool_results, PRUNE_RECENT_THRESHOLD_CHARS,
+                               PRUNE_THRESHOLD_CHARS, reclaim_stale_read_results)
 
 
 # Windows 终端粘贴 UTF-16 剪贴板时可能把代理对当成两个独立码点喂进 stdin，
@@ -70,6 +73,10 @@ class Engine:
         self._active_stream = None
         self._session_store = session_store
         self._cost_tracker = cost_tracker  # 费用追踪器，记录每次 API 调用的 token 用量
+        # 轮内守卫的精确基线：最近一次 API 的 input_tokens + 发请求时的估算值，
+        # 两者配合推算「精确 + 增量」的轮内真实体量（详见 effective_context_tokens）。
+        self._last_request_input_tokens = 0
+        self._last_request_estimate: int | None = None
         # git-ai 钩子参数：worker Engine 不挂 session_store，需要显式传；主 Engine 不传则回退 session_store
         self._repo_dir_override = repo_dir
         self._agent_session_id_override = agent_session_id
@@ -101,10 +108,15 @@ class Engine:
         return ""
 
     def set_messages(self, messages: list[dict]) -> None:
-        self._messages = [
-            {"role": m["role"], "content": m.get("content", "")}
-            for m in messages
-        ]
+        self._messages = []
+        for m in messages:
+            new_msg = {"role": m["role"], "content": m.get("content", "")}
+            # 保留 reasoning_content：DeepSeek 等思考模型要求原样带回下一轮
+            # （AGENTS.md 约定）。此前丢失会导致 resume/compact/fork 恢复后
+            # 上下文骤减（ctx 占比"下降"假象）且模型丢失历史思考链。
+            if m.get("reasoning_content"):
+                new_msg["reasoning_content"] = m["reasoning_content"]
+            self._messages.append(new_msg)
 
     def set_session_store(self, session_store) -> None:
         self._session_store = session_store
@@ -232,24 +244,40 @@ class Engine:
 
         history = self._messages[:self._turn_start_len]
         current_turn = self._messages[self._turn_start_len:]
+        did_something = False
 
-        # 历史消息太少，不值得压缩
+        # 先裁本轮超长 tool_result：无论历史多少条都执行，零 LLM 调用
+        # 修复：巨型 Bash/Grep 输出堆在 current_turn 里，原先永远不被裁剪
+        pruned_ct, ct_stats = prune_tool_results(
+            current_turn, threshold_chars=PRUNE_RECENT_THRESHOLD_CHARS
+        )
+        if ct_stats["pruned"] > 0:
+            current_turn = pruned_ct
+            self._messages = history + current_turn
+            did_something = True
+
+        # 历史消息太少，不值得走 LLM 摘要；但上面的 current_turn 裁剪仍会执行
         if len(history) < 10:
-            return False
+            return did_something
 
         try:
             new_history, _summary = self._compact_service.compact(
                 messages=history,
                 system_prompt=self._system_prompt,
+                # 轮内紧急压缩传 True：剪枝后若已低于自动触发阈值（0.8×窗口），
+                # 跳过 LLM 摘要直接返回剪枝结果——轮内场景多为"单轮读大文件"导致，
+                # 剪枝往往已经够用，无需再付一次摘要调用。
+                skip_if_under_threshold=True,
             )
             self._messages = new_history + current_turn
             # 更新 _turn_start_len，保证 cancel_turn() 截断到正确位置
             self._turn_start_len = len(new_history)
-            return True
+            did_something = True
         except Exception:
-            # 压缩失败时静默返回 False，让本轮继续——下一次 LLM 调用
-            # 可能因超 context window 失败，但至少不因压缩异常而中断用户操作。
-            return False
+            # 压缩失败时静默继续——下一次 LLM 调用可能因超 context window 失败，
+            # 但至少不因压缩异常而中断用户操作。
+            pass
+        return did_something
 
     def submit(self, user_input: str | list) -> Iterator[tuple]:
         # 清洗 lone surrogate（仅 str 路径，list 路径由内部构造不会含非法码点）
@@ -267,6 +295,7 @@ class Engine:
             self._session_store.append_message(user_msg)
 
         try:
+            _compact_done = False  # 每次 LLM 调用最多触发一次轮内压缩，防止重复循环
             while True:
                 if self._aborted:
                     raise AbortedError()
@@ -274,19 +303,64 @@ class Engine:
                 # ── 轮内令牌守卫：消息量接近窗口上限时紧急压缩历史 ──
                 # 弥补轮间 compact 无法覆盖「单轮内连续读大文件导致消息暴涨」的盲区。
                 # 阈值设 0.9（而非 1.0），给压缩后的 compact prompt 留余量。
+                # 有效体量 = max(纯估算, 精确基线 + 本轮估算增量)：估算补精确值的
+                # 滞后（新工具结果未计入），精确值补估算的分词误差（minified 低估）。
                 estimated = estimate_tokens(self._messages)
+                effective = effective_context_tokens(
+                    estimated,
+                    self._last_request_input_tokens or None,
+                    self._last_request_estimate)
                 threshold = int(get_context_window(self._model) * _INTRA_TURN_COMPACT_TRIGGER_RATIO)
-                if estimated > threshold:
+                if effective > threshold and not _compact_done:
                     yield ("compact",)
                     self._intra_turn_compact()
+                    _compact_done = True
+                    # 压缩后历史被替换，精确基线已失真 → 重置，退回纯估算
+                    self._last_request_input_tokens = 0
+                    self._last_request_estimate = None
+                    continue  # RC4：压缩后重新估算，避免压完仍超限就直接发请求
 
+                # RC4 兜底：continue 重估后仍超限（估算失真场景），对 current_turn 用更激进的
+                # 阈值强剪——每条 tool_result 最多保留头尾 ~5K 字符，确保不裸奔发超限请求
+                if effective > threshold and self._turn_start_len is not None:
+                    hard_pruned, _ = prune_tool_results(
+                        self._messages[self._turn_start_len:],
+                        threshold_chars=PRUNE_THRESHOLD_CHARS,
+                    )
+                    self._messages = self._messages[:self._turn_start_len] + hard_pruned
+                    self._last_request_input_tokens = 0
+                    self._last_request_estimate = None
+
+                # 进入实际 LLM 调用，重置标志（下一轮工具迭代可再次压缩）
+                _compact_done = False
                 tool_uses = []
                 tools_schema = [t.to_api_schema() for t in self._tools.values()] if self._tools else None
+
+                # ── 过期 Read 结果回收（发送副本，不污染 _messages）──
+                # 文件被后续 Edit/Write 修改过的旧 Read tool_result 对模型已无用（旧版本），
+                # 替换为短标记（保留 snippet 定位信息）。省 token 且避免模型基于旧版本思考。
+                # 只作用于发送副本：_messages 与磁盘 JSONL 保留原始完整内容，/resume 可重放。
+                # fail-closed：无 session_id 或内部查询异常 → 原样发送。
+                _send_messages = self._messages
+                _reclaim_sid = self._agent_session_id_override or (
+                    self._session_store.session_id if self._session_store else "")
+                if _reclaim_sid:
+                    try:
+                        _send_messages, _reclaim_stats = reclaim_stale_read_results(
+                            self._messages, _reclaim_sid)
+                        if _reclaim_stats["reclaimed"] > 0:
+                            # 有实际回收 → yield 事件让 UI 显示一行话术（用户可感知）
+                            yield ("stale_reclaim", _reclaim_stats)
+                    except Exception:
+                        _send_messages = self._messages  # 回收失败不影响主流程
+
+                # 记录请求时的估算基线：响应后用「精确 input + 估算增量」推算轮内真实体量
+                self._last_request_estimate = estimate_tokens(_send_messages)
 
                 with self._client.stream(
                     model=self._model,
                     system_prompt=self._system_prompt,
-                    messages=self._messages,
+                    messages=_send_messages,
                     tools=tools_schema,
                     max_tokens=self._max_tokens,
                 ) as stream:
@@ -327,6 +401,7 @@ class Engine:
                     # 记录本次 API 调用的 token 用量
                     if self._cost_tracker and final.usage:
                         self._cost_tracker.add_usage(self._model, final.usage)
+                        self._last_request_input_tokens = final.usage.get("input_tokens", 0)
                     if final.content and isinstance(final.content, list):
                         for block in final.content:
                             if _block_type(block) == "tool_use":
@@ -523,6 +598,19 @@ class Engine:
         repo_dir = self._repo_dir_override or (
             self._session_store.cwd if self._session_store else "")
 
+        # Edit 的 file_path 是可选字段，LLM 通常只传 snippet_id 不传 file_path。
+        # 若缺失则通过 snippet_id 查文件状态拿到真实路径，否则 checkpoint 会发
+        # edited_filepaths=[] 导致 git-ai 无法归属本次修改。
+        if is_write and not file_path and tool_name == "Edit":
+            _snippet_id = tool_input.get("snippet_id", "")
+            if _snippet_id:
+                from core.file_state import get_snippet
+                _sess = self._agent_session_id_override or (
+                    self._session_store.session_id if self._session_store else "unknown")
+                _snip = get_snippet(_sess, _snippet_id)
+                if _snip:
+                    file_path = _snip.file_path
+
         if is_write and repo_dir:
             before_edit(repo_dir, file_path)
 
@@ -532,10 +620,11 @@ class Engine:
             return ToolResult(f"Tool error: {e}", is_error=True)
 
         if is_write and repo_dir and not result.is_error:
-            # 编辑成功后标记为 AI 代码，传入当前消息历史、模型名、会话 ID
+            # 兜底：Edit 成功时 metadata 里也带有 file_path
+            resolved_path = file_path or (result.metadata or {}).get("file_path", "")
             session_id = self._agent_session_id_override or (
                 self._session_store.session_id if self._session_store else "unknown")
-            after_edit(repo_dir, file_path, self._messages, self._model, session_id)
+            after_edit(repo_dir, resolved_path, self._messages, self._model, session_id)
 
         return result
 

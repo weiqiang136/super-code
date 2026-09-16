@@ -3,23 +3,28 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import json
+import re
 import sys
 import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from prompt_toolkit.history import FileHistory
-from rich.console import Console
 from rich.markup import escape as _escape
 
 from commands import CommandContext, handle_command, is_known_command, parse_command
-from core.config import load_app_config
+from core.config import ensure_user_config, load_app_config
 from core.context import build_system_prompt
 from core.engine import Engine
+from core.llm import LLMClient
+from core.model_capabilities import supports_vision
 from core.permissions import PermissionChecker
+from core.safe_console import SafeConsole
 from core.session import SessionStore
-from features.compact import CompactService, should_compact
+from features.compact import CompactService, get_context_window, should_compact
 from features.coordinator import (
     get_coordinator_system_prompt, get_coordinator_user_context,
     get_worker_system_prompt, is_coordinator_mode, set_coordinator_mode,
@@ -33,44 +38,124 @@ from features.memory import (
 from features.plan import PlanModeManager
 from features.skills import discover_skills, build_skills_prompt_section
 from features.worker_manager import WorkerManager
+from core.llm import lookup_extra_body
 from mcp.loader import load_mcp_tools, shutdown_mcp
 from tools import AskUserQuestionTool, BashTool, FileEditTool, FileReadTool, FileWriteTool, GlobTool, GrepTool, \
     WebFetchTool, WebSearchTool
 from tools.agent import AgentTool, SendMessageTool, TaskStopTool
 from tui.prompt import bordered_prompt, slash_completer
 from tui.query import run_query
-from tui.rendering import SpinnerManager
+from tui.rendering import SpinnerManager, SPINNER_MEMORY
 
-console = Console()
+console = SafeConsole()
 
 _DOUBLE_PRESS_TIMEOUT = 0.8
 
+# ===== 多模态图片组装（P0）=====
+_IMAGE_PLACEHOLDER_RE = re.compile(r"\[🖼 (\d+): ([^\]]+)\]")
+
+
+
 _LOGO_LINES = [
-    r" ___                         ___         _     ",
-    r"/ __|_  _ _ __  ___ _ _     / __|___  __| |___ ",
-    r"\__ \ || | |_ \/ -_) |_|   | (__/ _ \/ _  / -_)",
-    r"|___/\_,_| .__/\___|_|      \___\___/\__,_\___|",
-    r"         |_|  Code                              ",
+    r"███████╗██╗   ██╗██████╗ ███████╗██████╗",
+    r"██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗",
+    r"███████╗██║   ██║██████╔╝█████╗  ██████╔╝",
+    r"╚════██║██║   ██║██╔═══╝ ██╔══╝  ██╔══██╗",
+    r"███████║╚██████╔╝██║     ███████╗██║  ██║",
+    r"╚══════╝ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═╝",
 ]
 
+def _assemble_image_content(prefix: str, text: str, images: list[dict]) -> str | list[dict]:
+    """把记忆前缀 + 用户文本 + 图片附件组装为内部消息 content。
+        把"输入框里看到的文字+占位符"翻译成"模型能看的文字+图片消息"
+    无图片 → 返回 str（与现状 memory_prefix + user_input 完全一致，纯文本零回归）；
+    有图片 → 按占位符出现位置切分 text/image blocks，占位符对应 images[idx]。
+    """
+    if not images:
+        return prefix + text
+    full = prefix + text
+    blocks: list[dict] = []
+    pos = 0
+    matched = 0
+    for m in _IMAGE_PLACEHOLDER_RE.finditer(full):
+        seg = full[pos:m.start()].strip()
+        if seg:
+            blocks.append({"type": "text", "text": seg})
+        idx = int(m.group(1))
+        if 0 <= idx < len(images):
+            src = images[idx]
+            blocks.append({"type": "image", "source": {
+                "media_type": src["media_type"], "data": src["data"]}})
+            matched += 1
+        pos = m.end()
+    if pos < len(full):
+        seg = full[pos:].strip()
+        if seg:
+            blocks.append({"type": "text", "text": seg})
+    # 防御：占位符一个都没匹配上（如用户删除了占位符但 images_ref 残留）
+    # → 只发文本，不发图（静默丢弃残留图，避免发错内容）
+    if matched == 0:
+        return full
+    if not blocks:
+        blocks.append({"type": "text", "text": ""})
+    return blocks
 
-def _print_banner(app_config) -> None:
-    """打印启动横幅：Panel 包裹，左侧紫色 ASCII logo，右侧模型信息。"""
-    from rich.panel import Panel
+
+def _fmt_tokens(n: int) -> str:
+    """token 数格式化：≥1M 显示 M（整数省略小数位），否则显示 K。"""
+    if n >= 1_000_000:
+        m = n / 1_000_000
+        return f"{m:.0f}M" if m == int(m) else f"{m:.1f}M"
+    return f"{round(n / 1024)}K"
+
+
+def _build_selector_client(app_config) -> tuple[Any, str]:
+    """构建记忆 selector 的 LLMClient 与模型名。
+
+    extract_model 两种形态：
+        str  → 复用主对话 client（engine._client），仅换模型名 —— 老行为，零差异。
+        dict → 独立构建 client：可选字段 {model, base_url, api_key, timeout, extra_body}，
+               省略即回退主对话值；extra_body 提供时合进 model_profiles 的精确 key——
+               lookup_extra_body 按 key 长度降序匹配，精确模型名最长必然先命中，
+               从而覆盖外层 profile（主模型与 extract 同名时也能单独控制推理强度）。
+    """
+    extract_cfg = app_config.extract_model
+    if not isinstance(extract_cfg, dict):
+        return None, extract_cfg or app_config.model
+    selector_model = extract_cfg.get("model") or app_config.model
+    selector_profiles = dict(app_config.model_profiles)
+    extract_extra_body = extract_cfg.get("extra_body")
+    if extract_extra_body:
+        selector_profiles[selector_model] = {"extra_body": extract_extra_body}
+    client = LLMClient(
+        provider=app_config.provider,
+        api_key=extract_cfg.get("api_key") or app_config.api_key,
+        base_url=extract_cfg.get("base_url") or app_config.base_url,
+        timeout=float(extract_cfg.get("timeout") or app_config.timeout),
+        model_profiles=selector_profiles,
+    )
+    return client, selector_model
+
+
+def _print_banner(app_config, cwd: str, session_id: str) -> None:
+    """打印启动横幅：Panel 包裹，左侧紫色 ASCII logo，右侧模型信息。
+
+    Context（上下文窗口）按模型动态映射（features/compact.get_context_window），
+    与自动压缩触发阈值同源，保证展示和实际行为一致。
+    """
     from rich.table import Table
     from rich.text import Text
+    from features.compact import get_context_window
 
-    logo = Text()
-    for line in _LOGO_LINES:
-        logo.append(line + "\n", style="bold bright_magenta")
+    logo = Text("\n".join(_LOGO_LINES), style="italic bold bright_magenta")
 
-    info = Text("\n")
-    info.append("Provider : ", style="dim"); info.append(f"{app_config.provider}\n", style="white")
-    info.append("Model    : ", style="dim"); info.append(f"{app_config.model}\n", style="white")
-    _t = app_config.max_tokens
-    _fmt = f"{_t / 1_000_000:.1f}M" if _t >= 1_000_000 else f"{round(_t / 1024)}K"
-    info.append("Tokens   : ", style="dim"); info.append(f"{_fmt}\n", style="white")
-    info.append("Version  : ", style="dim"); info.append("v0.1.0\n", style="bold bright_magenta")
+    info = Text()
+    info.append("Model       : ", style="cyan"); info.append(f"{app_config.model}\n", style="bright_cyan")
+    info.append("Context     : ", style="cyan"); info.append(f"{_fmt_tokens(get_context_window(app_config.model))}\n", style="bright_green")
+    info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
+    info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
+    info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.15", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -78,8 +163,7 @@ def _print_banner(app_config) -> None:
     table.add_row(logo, info)
 
     console.print()
-    console.print(Panel(table, border_style="bright_magenta", padding=(0, 1)))
-    console.print()
+    console.print(table)
 
 
 def _run_dream(engine, memory_dir, permissions, quiet: bool = True,
@@ -156,6 +240,7 @@ def _trigger_auto_dream_bg(app_config, memory_dir: Path, session_store) -> bool:
 
 def main() -> None:
     print("\033]0;super-code\007", end="")  # 设置终端标题
+    ensure_user_config()  # pip/开发模式：首启从内置模板落盘全局配置
     parser = argparse.ArgumentParser(prog="super-code", description="Minimal AI coding assistant")
     parser.add_argument("prompt", nargs="?", help="Prompt to send (optional)")
     parser.add_argument("-p", "--print", action="store_true",
@@ -288,8 +373,16 @@ def main() -> None:
     permissions.set_plan_manager(plan_manager)
 
     # Compact service — 复用 engine 内部的 LLMClient
-    compact_service = CompactService(client=engine._client, model=app_config.model)
+    # cost_tracker 注入：压缩成功后记账 + 覆盖 last_input_tokens（底部栏 ctx 占用率）
+    compact_service = CompactService(client=engine._client, model=app_config.model,
+                                     cost_tracker=cost_tracker)
     engine.set_compact_service(compact_service)  # 注入 engine 供轮内紧急压缩使用
+
+    # 记忆 selector client：extract_model 为 dict 时独立构建（可换服务商 / 单独控制
+    # 推理强度，字段省略即回退主对话值）；字符串 / 未配置时返回 None，复用主 client。
+    selector_client, selector_model = _build_selector_client(app_config)
+    if selector_client is None:
+        selector_client = engine._client
 
     # 注入 worker 通知回调：engine 在每轮工具执行完成后 drain 通知队列，
     # 将已完成 worker 的结果注入 conversation，coordinator 在同一 turn 内自动感知。
@@ -327,6 +420,13 @@ def main() -> None:
     if args.print or args.prompt:
         prompt_text = args.prompt or sys.stdin.read()
         run_query(engine, prompt_text, print_mode=args.print, permissions=permissions)
+        # headless 结束时把 token 用量打到 stderr（一行 JSON）——评测 harness
+        # （Harbor adapter）从输出解析；交互模式无此需求，不打扰正常使用
+        if cost_tracker is not None and cost_tracker.has_usage:
+            print(
+                f"[SUPERCODE_USAGE] {json.dumps(cost_tracker.totals())}",
+                file=sys.stderr,
+            )
         return
 
     # Interactive REPL
@@ -359,7 +459,7 @@ def main() -> None:
     except Exception:
         pass
 
-    _print_banner(app_config)
+    _print_banner(app_config, cwd, session_store.session_id)
 
     # 启动 git-ai daemon（如果已安装）：后台线程，不阻塞 UI 显示。
     # checkpoint 数据只存在 daemon 内存中，电脑重启后 daemon 不在运行，
@@ -372,6 +472,12 @@ def main() -> None:
     history_file = memory_dir.parent / "repl_history"   # 用户可以通过上下方向键回溯之前的input
     pt_history = FileHistory(str(history_file))
     mode_ref = [False]  # [False]=normal, [True]=plan，传给 bordered_prompt 共享状态
+
+    # 底部栏思考深度标签：取当前模型匹配 profile 的 reasoning_effort（如 high/max）。
+    # 模型启动后固定（无 /model 切换），算一次即可；未配置（非思考模型）为 None，
+    # 显示层隐藏。qwen 系 thinking_budget 是另一维度，不在此展示。
+    _matched_eb = lookup_extra_body(app_config.model, app_config.model_profiles)
+    effort_value = (_matched_eb or {}).get("reasoning_effort")
 
     def _toggle_plan_mode() -> None:
         """Shift+Tab 回调：真正切换 plan mode，同时同步 UI 状态。
@@ -416,10 +522,23 @@ def main() -> None:
 
     while True:
         try:
+            # 底部栏 ctx 占用率：用最近一次 API 返回的 input_tokens（精确计数），
+            # 除以模型 context window。0 = 尚未调用 API，显示层会隐藏。
+            ctx_usage = [cmd_ctx.cost_tracker.last_input_tokens if cmd_ctx.cost_tracker else 0,
+                         get_context_window(cmd_ctx.model)]
+            # 图片附件收集（P0 多模态）：bordered_prompt 内拖拽图片时按序 append 到这里
+            images_ref: list[dict] = []
             user_input = bordered_prompt(console, history=pt_history,
                                          completer=slash_completer, mode_ref=mode_ref,
+                                         effort_value=effort_value,
                                          on_mode_toggle=_toggle_plan_mode,
-                                         session_title=cmd_ctx.session_store._title)
+                                         session_title=cmd_ctx.session_store._title,
+                                         ctx_usage=ctx_usage,
+                                         images_ref=images_ref,
+                                         # worker 进度面板：仅协调者模式启用
+                                         # （get_panel_status 是线程安全快照，含完成态；普通模式传 None 零影响）
+                                         worker_status_cb=worker_manager.get_panel_status
+                                         if is_coordinator_mode() else None)
             if user_input is None:
                 user_input = ""
             user_input = user_input.strip()
@@ -446,14 +565,18 @@ def main() -> None:
         if not user_input:
             continue
 
+        # 用户提交了新一轮输入：清除已完成 worker 记录（保留运行中），
+        # 面板完成态随之消失，不再常驻输入框上方
+        worker_manager.clear_finished()
+
         if user_input.startswith("!") and len(user_input) > 1:
             import subprocess
             result = subprocess.run(user_input[1:].lstrip(),
                                     shell=True, capture_output=True, text=True)
             if result.stdout:
-                console.print(result.stdout.rstrip())
+                console.print(_escape(result.stdout.rstrip()))
             if result.stderr:
-                console.print(f"[red]{result.stderr.rstrip()}[/red]")
+                console.print(f"[red]{_escape(result.stderr.rstrip())}[/red]")
             continue
 
         if user_input.lower() in ("exit", "quit", "/exit", "/quit"):
@@ -509,16 +632,16 @@ def main() -> None:
         if not plan_manager.is_active:
             try:
                 from features.find_relevant_memories import build_relevant_memories_prefix, will_need_side_query
-                # extract_model 是 Step 6 性能优化：用更便宜的小模型跑 selector；
-                # 未配置（空串）则回退到主模型，行为与早期版本一致
-                selector_model = app_config.extract_model or app_config.model
+                # selector_client / selector_model 在启动时构建：
+                #   extract_model 为 dict → 独立 client（可换服务商 / 单独控制推理强度）
+                #   字符串 / 未配置 → 复用主 client，仅换模型名（老行为）
                 _needs_llm = will_need_side_query(user_input, memory_dir)
                 if _needs_llm:
                     _mem_spinner = SpinnerManager(console)
-                    _mem_spinner.start("Searching memories…")
+                    _mem_spinner.start("Searching memories…", SPINNER_MEMORY)
                 try:
                     memory_prefix = build_relevant_memories_prefix(
-                        user_input, memory_dir, engine._client, selector_model,
+                        user_input, memory_dir, selector_client, selector_model,
                     )
                 finally:
                     if _needs_llm:
@@ -531,7 +654,19 @@ def main() -> None:
         # 等都会从 openai SDK 经 engine.submit() 一路冒上来，run_query 内部只接 Abort/Ctrl+C。
         # 不接住的话异常会逃出主循环 → 整个 TUI 当场退出。处理方式与 worker 通知路径同源。
         try:
-            run_query(engine, memory_prefix + user_input, print_mode=False, permissions=permissions)
+            # 多模态：有图片附件 → 组装 [text, image] 混合 content；无图 → 原样 str（零回归）
+            user_content = _assemble_image_content(memory_prefix, user_input, images_ref)
+            # 发送前拦截（P2）：含图且能力表判定主模型不支持视觉 → 不 submit、不污染会话
+            if isinstance(user_content, list) and any(
+                    isinstance(b, dict) and b.get("type") == "image" for b in user_content):
+                cap = supports_vision(cmd_ctx.model)
+                if cap is False:
+                    console.print(
+                        f"\n[red]当前模型 {cmd_ctx.model} 不支持图片输入。"
+                        f"请更换支持视觉的主模型（如 deepseek-v4-flash-vision-exp）。[/red]"
+                    )
+                    continue   # 未入 engine._messages / JSONL，无脏状态，直接等下一轮输入
+            run_query(engine, user_content, print_mode=False, permissions=permissions)
         except KeyboardInterrupt:
             engine.cancel_turn()
             console.print("\n[dim yellow]⏹ Turn cancelled[/dim yellow]")
@@ -570,7 +705,10 @@ def main() -> None:
         # 每轮结束后检查是否需要自动压缩（plan mode 下跳过；熔断后跳过）
         if not plan_manager.is_active and consecutive_compact_failures < MAX_CONSECUTIVE_COMPACT_FAILURES:
             messages = engine.get_messages()
-            if should_compact(messages, model=app_config.model):
+            precise = (cmd_ctx.cost_tracker.last_input_tokens
+                       if cmd_ctx.cost_tracker else None)
+            if should_compact(messages, model=app_config.model,
+                              last_input_tokens=precise):
                 console.print("[dim]Auto-compacting conversation context…[/dim]")
                 # 只捕获 Exception（不含 KeyboardInterrupt/SystemExit）：保留用户 Ctrl+C
                 # 中断 autocompact 的既有逃逸路径，不把"用户取消"误计入熔断失败次数。
@@ -598,8 +736,8 @@ def main() -> None:
     # 退出时关闭所有 MCP server 子进程
     shutdown_mcp()
 
-    # 退出时打印费用摘要
-    if cost_tracker.total_cost_usd > 0 or cost_tracker.last_input_tokens > 0:
+    # 退出时打印 token 用量摘要
+    if cost_tracker.has_usage:
         console.print(f"\n[dim]{cost_tracker.format_cost()}[/dim]")
 
 

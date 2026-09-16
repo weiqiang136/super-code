@@ -79,12 +79,13 @@ class AskUserQuestionTool(Tool):
             options = q.get("options", [])
             labels = [o["label"] for o in options]
 
-            from rich.console import Console
-            console = Console()
-            console.print(f"\n[bold]{question_text}[/bold]")
+            from core.safe_console import SafeConsole
+            from rich.markup import escape as _escape
+            console = SafeConsole()
+            console.print(f"\n[bold]{_escape(question_text)}[/bold]")
             for i, o in enumerate(options, 1):
                 desc = o.get("description", "")
-                console.print(f"  {i}) {o['label']}" + (f" — {desc}" if desc else ""))
+                console.print(f"  {i}) {_escape(o['label'])}" + (f" — {_escape(desc)}" if desc else ""))
             console.print(f"  {len(options)+1}) Other")
 
             while True:

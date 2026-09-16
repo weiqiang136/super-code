@@ -476,7 +476,7 @@ def _build_post_compact_attachments(ctx: CommandContext) -> list[dict]:
 
 def _cmd_compact(ctx: CommandContext, args: str) -> None:
     """压缩对话上下文，保留最近消息，用摘要替换历史消息。文件里的消息采用直接覆盖的方式"""
-    from features.compact import estimate_tokens
+    from features.compact import EmptySummaryError, estimate_tokens
 
     if ctx.compact_service is None:
         ctx.console.print("[dim]Compact service not available.[/dim]")
@@ -488,16 +488,38 @@ def _cmd_compact(ctx: CommandContext, args: str) -> None:
         return
 
     pre_tokens = estimate_tokens(messages)
-    ctx.console.print(f"[dim]Compacting {len(messages)} messages (~{pre_tokens:,} tokens)…[/dim]")
+
+    # 压缩期间起 spinner：摘要是一次几十秒到几分钟的 LLM 调用（大上下文更久），
+    # 静态打印后干等会让用户误以为卡死。复用轮内压缩同款 SPINNER_COMPACT 场景，
+    # /compact 与自动压缩两条路径都经过这里，一处接入两处生效。
+    from tui.rendering import SpinnerManager, SPINNER_COMPACT
+    spinner = SpinnerManager(ctx.console)
+    spinner.start(f"Compacting {len(messages)} messages (~{pre_tokens:,} tokens)…",
+                  SPINNER_COMPACT)
 
     # Step 7-A：构造压缩后重注入附件（plan / worker），与 compact 主流程解耦
     attachments = _build_post_compact_attachments(ctx)
 
-    new_msgs, _ = ctx.compact_service.compact(
-        messages, ctx.engine.system_prompt,
-        custom_instructions=args,
-        attachments=attachments,
-    )
+    try:
+        try:
+            new_msgs, _ = ctx.compact_service.compact(
+                messages, ctx.engine.system_prompt,
+                custom_instructions=args,
+                attachments=attachments,
+                # 手动/自动轮间压缩同样先剪枝：剪完若已低于自动触发阈值则跳过摘要，
+                # 避免"上下文本不紧张还白付一次摘要费"。
+                skip_if_under_threshold=True,
+            )
+        finally:
+            spinner.stop()  # 异常路径也要先收动画，再打印错误，避免 Live 糊屏
+    except EmptySummaryError as exc:
+        # 摘要 LLM 返回空文本（重试后仍空）：中止压缩，历史保持原样。
+        # 覆盖写发生在下面，异常时不会执行 → 不会用空摘要吞掉历史（2026-08-16 事故）。
+        ctx.console.print(f"[red]✗ Compaction aborted:[/red] {_escape(str(exc))}")
+        return
+    except Exception as exc:
+        ctx.console.print(f"[red]✗ Compaction failed:[/red] {_escape(str(exc))}")
+        return
     ctx.engine.set_messages(new_msgs)
 
     # Phase 4: 压缩后 snippet 已过期（历史 read/edit 记录被摘要替代），
@@ -549,7 +571,7 @@ def _cmd_skills(ctx: CommandContext, args: str) -> None:
 
 
 def _cmd_cost(ctx: CommandContext, args: str) -> None:
-    """显示本次会话的 token 用量和费用摘要。"""
+    """显示本次会话的 token 用量摘要。"""
     if ctx.cost_tracker is None:
         ctx.console.print("[dim]Cost tracking not available.[/dim]")
         return
@@ -696,7 +718,7 @@ def _open_in_editor(ctx: CommandContext, path: Path) -> None:
             "Set $EDITOR to a valid command (e.g. `code -w`, `nano`)."
         )
     except Exception as exc:
-        ctx.console.print(f"[red]Failed to launch editor:[/red] {exc}")
+        ctx.console.print(f"[red]Failed to launch editor:[/red] {_escape(str(exc))}")
 
 
 def _cmd_dream(ctx: CommandContext, args: str) -> None:
@@ -722,7 +744,7 @@ def _cmd_dream(ctx: CommandContext, args: str) -> None:
         record_consolidation(memory_dir)
         ctx.console.print("[green]✓[/green] Dream consolidation complete.")
     except Exception as exc:
-        ctx.console.print(f"[red]Dream failed: {exc}[/red]")
+        ctx.console.print(f"[red]Dream failed: {_escape(str(exc))}[/red]")
     finally:
         release_lock(memory_dir)
 

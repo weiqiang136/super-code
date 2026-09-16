@@ -4,6 +4,8 @@ import os
 import sys
 from typing import Literal, TYPE_CHECKING
 
+from rich.markup import escape
+
 from core.tool import Tool
 
 if TYPE_CHECKING:
@@ -92,11 +94,11 @@ class PermissionChecker:
             plan_path = self._plan_manager.plan_file_path if self._plan_manager else None
             if plan_path and os.path.realpath(file_path) == os.path.realpath(plan_path): # 返回指定路径的规范化绝对路径，并解析所有符号链接（软链接）
                 return "allow"
-            from rich.console import Console
-            Console().print(f"[yellow]Plan mode: can only edit the plan file ({plan_path})[/yellow]")
+            from core.safe_console import SafeConsole
+            SafeConsole().print(f"[yellow]Plan mode: can only edit the plan file ({plan_path})[/yellow]")
             return "deny"
-        from rich.console import Console
-        Console().print(f"[yellow]Plan mode: {tool.name} is not allowed.[/yellow]")
+        from core.safe_console import SafeConsole
+        SafeConsole().print(f"[yellow]Plan mode: {tool.name} is not allowed.[/yellow]")
         return "deny"
 
     def _check_dream(self, tool: Tool, inputs: dict) -> PermissionBehavior:
@@ -110,14 +112,14 @@ class PermissionChecker:
         return "deny"
 
     def _prompt_user(self, tool: Tool, inputs: dict) -> PermissionBehavior:
-        from rich.console import Console
+        from core.safe_console import SafeConsole
         from prompt_toolkit.application import Application as PTApp
         from prompt_toolkit.key_binding import KeyBindings
         from prompt_toolkit.layout import Layout
         from prompt_toolkit.layout.containers import Window
         from prompt_toolkit.layout.controls import FormattedTextControl
 
-        console = Console()
+        console = SafeConsole()
         console.print(f"\n[bold yellow]Permission required:[/bold yellow] [bold]{tool.name}[/bold]")
 
         # For Edit tool, show old_string/new_string as a diff in a dashed-border Panel
@@ -127,10 +129,10 @@ class PermissionChecker:
             diff_lines = []
             if old_str:
                 for line in old_str.splitlines():
-                    diff_lines.append(f"[red]- {line}[/red]")
+                    diff_lines.append(f"[red]- {escape(line)}[/red]")
             if new_str:
                 for line in new_str.splitlines():
-                    diff_lines.append(f"[green]+ {line}[/green]")
+                    diff_lines.append(f"[green]+ {escape(line)}[/green]")
             from rich.panel import Panel
             diff_body = "\n".join(diff_lines)
             if len(diff_body) > 500:
@@ -140,11 +142,11 @@ class PermissionChecker:
                 if k in ("old_string", "new_string"):
                     continue
                 val = str(v)[:200] + ("..." if len(str(v)) > 200 else "")
-                console.print(f"  [dim]{k}:[/dim] {val}")
+                console.print(f"  [dim]{k}:[/dim] {escape(val)}")
         else:
             for k, v in inputs.items():
                 val = str(v)[:200] + ("..." if len(str(v)) > 200 else "")
-                console.print(f"  [dim]{k}:[/dim] {val}")
+                console.print(f"  [dim]{k}:[/dim] {escape(val)}")
 
         if self._esc_listener:
             self._esc_listener.pause()
