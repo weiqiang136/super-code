@@ -889,8 +889,11 @@ class CompactService:
         # 1) 记账本次摘要调用的 token（此前非流式 create 不返回 usage，/cost 漏记）；
         # 2) 覆盖 last_input_tokens 为压缩后新历史的估算值——摘要请求的 input 是压缩前的
         #    旧历史，add_usage 会记成旧值导致底部栏 ctx 占用率虚高，下一轮对话再纠正为精确值。
-        if self._cost_tracker and response.usage:
-            self._cost_tracker.add_usage(self._model, response.usage)
+        # 覆盖不依赖 usage：摘要响应没带 usage 时（2026-09-15 esigning 实测，压缩后底栏
+        # 92% 挂了三轮才被下个成功请求纠正），也必须把底栏拉回新历史量级。
+        if self._cost_tracker:
+            if response.usage:
+                self._cost_tracker.add_usage(self._model, response.usage)
             self._cost_tracker.set_last_input_tokens(estimate_tokens(new_messages))
         return new_messages, summary_text
 

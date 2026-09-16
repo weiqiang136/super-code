@@ -6,7 +6,15 @@
 import sys
 sys.path.insert(0, "src")
 
-from features.compact import effective_context_tokens, should_compact
+from types import SimpleNamespace
+
+from features.compact import (
+    CompactService,
+    effective_context_tokens,
+    estimate_tokens,
+    should_compact,
+)
+from features.cost_tracker import CostTracker
 
 
 # ---------------------------------------------------------------------------
@@ -60,3 +68,39 @@ def test_should_compact_estimate_only_still_works():
     """不传精确值 → 行为与旧版一致（估算 > 阈值即触发）。"""
     big = [{"role": "user", "content": "a" * 3_000_000}]  # 非 CJK 3M 字符 ÷ 3 = 1M 估算
     assert should_compact(big, model="glm-5.3-flash") is True
+
+
+# ---------------------------------------------------------------------------
+# 压缩后底栏覆盖（usage 缺失也不许跳过）
+# ---------------------------------------------------------------------------
+
+class _NoUsageClient:
+    """摘要响应不带 usage 的假客户端（2026-09-15 esigning 实测场景）。"""
+
+    def create(self, **kwargs):
+        return SimpleNamespace(
+            content=[{"type": "text",
+                      "text": "<analysis>draft</analysis><summary>summary text</summary>"}],
+            usage=None,
+        )
+
+
+def test_compact_overrides_bar_even_without_usage():
+    """回归：摘要响应 usage=None → 底栏仍必须被覆盖为新历史估算。
+
+    旧实现 set_last_input_tokens 被 `if cost_tracker and response.usage` 守卫
+    连带跳过 → 压缩后底栏残留 92%（摘要请求的旧历史精确值），挂到下个成功
+    请求才纠正。修复 = 覆盖挪出 usage 守卫（覆盖本身不依赖 usage）。
+    """
+    svc = CompactService(client=_NoUsageClient(), model="unknown-model",
+                         cost_tracker=CostTracker())
+    msgs = [{"role": "user", "content": "p" * 5000} for _ in range(20)]
+    new_msgs, summary = svc.compact(msgs, "sys", skip_if_under_threshold=False)
+
+    assert summary
+    expected = estimate_tokens(new_msgs)
+    assert expected > 0
+    # 关键断言：底栏被覆盖为压缩后新历史的估算值，而不是残留旧值/0
+    assert svc._cost_tracker.last_input_tokens == expected
+    # usage 为空 → 不误记账
+    assert svc._cost_tracker.totals()["input_tokens"] == 0

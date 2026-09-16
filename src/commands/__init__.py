@@ -488,20 +488,30 @@ def _cmd_compact(ctx: CommandContext, args: str) -> None:
         return
 
     pre_tokens = estimate_tokens(messages)
-    ctx.console.print(f"[dim]Compacting {len(messages)} messages (~{pre_tokens:,} tokens)…[/dim]")
+
+    # 压缩期间起 spinner：摘要是一次几十秒到几分钟的 LLM 调用（大上下文更久），
+    # 静态打印后干等会让用户误以为卡死。复用轮内压缩同款 SPINNER_COMPACT 场景，
+    # /compact 与自动压缩两条路径都经过这里，一处接入两处生效。
+    from tui.rendering import SpinnerManager, SPINNER_COMPACT
+    spinner = SpinnerManager(ctx.console)
+    spinner.start(f"Compacting {len(messages)} messages (~{pre_tokens:,} tokens)…",
+                  SPINNER_COMPACT)
 
     # Step 7-A：构造压缩后重注入附件（plan / worker），与 compact 主流程解耦
     attachments = _build_post_compact_attachments(ctx)
 
     try:
-        new_msgs, _ = ctx.compact_service.compact(
-            messages, ctx.engine.system_prompt,
-            custom_instructions=args,
-            attachments=attachments,
-            # 手动/自动轮间压缩同样先剪枝：剪完若已低于自动触发阈值则跳过摘要，
-            # 避免"上下文本不紧张还白付一次摘要费"。
-            skip_if_under_threshold=True,
-        )
+        try:
+            new_msgs, _ = ctx.compact_service.compact(
+                messages, ctx.engine.system_prompt,
+                custom_instructions=args,
+                attachments=attachments,
+                # 手动/自动轮间压缩同样先剪枝：剪完若已低于自动触发阈值则跳过摘要，
+                # 避免"上下文本不紧张还白付一次摘要费"。
+                skip_if_under_threshold=True,
+            )
+        finally:
+            spinner.stop()  # 异常路径也要先收动画，再打印错误，避免 Live 糊屏
     except EmptySummaryError as exc:
         # 摘要 LLM 返回空文本（重试后仍空）：中止压缩，历史保持原样。
         # 覆盖写发生在下面，异常时不会执行 → 不会用空摘要吞掉历史（2026-08-16 事故）。
