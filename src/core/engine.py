@@ -7,7 +7,8 @@ from typing import Iterator, Any
 from core.llm import LLMClient
 from core.tool import Tool, ToolResult
 from core.permissions import PermissionChecker
-from features.compact import (estimate_tokens, get_context_window,
+from features.compact import (estimate_tokens, effective_context_tokens,
+                               get_context_window,
                                prune_tool_results, PRUNE_RECENT_THRESHOLD_CHARS,
                                PRUNE_THRESHOLD_CHARS, reclaim_stale_read_results)
 
@@ -72,6 +73,10 @@ class Engine:
         self._active_stream = None
         self._session_store = session_store
         self._cost_tracker = cost_tracker  # 费用追踪器，记录每次 API 调用的 token 用量
+        # 轮内守卫的精确基线：最近一次 API 的 input_tokens + 发请求时的估算值，
+        # 两者配合推算「精确 + 增量」的轮内真实体量（详见 effective_context_tokens）。
+        self._last_request_input_tokens = 0
+        self._last_request_estimate: int | None = None
         # git-ai 钩子参数：worker Engine 不挂 session_store，需要显式传；主 Engine 不传则回退 session_store
         self._repo_dir_override = repo_dir
         self._agent_session_id_override = agent_session_id
@@ -298,22 +303,33 @@ class Engine:
                 # ── 轮内令牌守卫：消息量接近窗口上限时紧急压缩历史 ──
                 # 弥补轮间 compact 无法覆盖「单轮内连续读大文件导致消息暴涨」的盲区。
                 # 阈值设 0.9（而非 1.0），给压缩后的 compact prompt 留余量。
+                # 有效体量 = max(纯估算, 精确基线 + 本轮估算增量)：估算补精确值的
+                # 滞后（新工具结果未计入），精确值补估算的分词误差（minified 低估）。
                 estimated = estimate_tokens(self._messages)
+                effective = effective_context_tokens(
+                    estimated,
+                    self._last_request_input_tokens or None,
+                    self._last_request_estimate)
                 threshold = int(get_context_window(self._model) * _INTRA_TURN_COMPACT_TRIGGER_RATIO)
-                if estimated > threshold and not _compact_done:
+                if effective > threshold and not _compact_done:
                     yield ("compact",)
                     self._intra_turn_compact()
                     _compact_done = True
+                    # 压缩后历史被替换，精确基线已失真 → 重置，退回纯估算
+                    self._last_request_input_tokens = 0
+                    self._last_request_estimate = None
                     continue  # RC4：压缩后重新估算，避免压完仍超限就直接发请求
 
                 # RC4 兜底：continue 重估后仍超限（估算失真场景），对 current_turn 用更激进的
                 # 阈值强剪——每条 tool_result 最多保留头尾 ~5K 字符，确保不裸奔发超限请求
-                if estimated > threshold and self._turn_start_len is not None:
+                if effective > threshold and self._turn_start_len is not None:
                     hard_pruned, _ = prune_tool_results(
                         self._messages[self._turn_start_len:],
                         threshold_chars=PRUNE_THRESHOLD_CHARS,
                     )
                     self._messages = self._messages[:self._turn_start_len] + hard_pruned
+                    self._last_request_input_tokens = 0
+                    self._last_request_estimate = None
 
                 # 进入实际 LLM 调用，重置标志（下一轮工具迭代可再次压缩）
                 _compact_done = False
@@ -337,6 +353,9 @@ class Engine:
                             yield ("stale_reclaim", _reclaim_stats)
                     except Exception:
                         _send_messages = self._messages  # 回收失败不影响主流程
+
+                # 记录请求时的估算基线：响应后用「精确 input + 估算增量」推算轮内真实体量
+                self._last_request_estimate = estimate_tokens(_send_messages)
 
                 with self._client.stream(
                     model=self._model,
@@ -382,6 +401,7 @@ class Engine:
                     # 记录本次 API 调用的 token 用量
                     if self._cost_tracker and final.usage:
                         self._cost_tracker.add_usage(self._model, final.usage)
+                        self._last_request_input_tokens = final.usage.get("input_tokens", 0)
                     if final.content and isinstance(final.content, list):
                         for block in final.content:
                             if _block_type(block) == "tool_use":

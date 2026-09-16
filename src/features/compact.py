@@ -391,16 +391,44 @@ def get_context_window(model: str | None) -> int:
     return DEFAULT_CONTEXT_WINDOW
 
 
+def effective_context_tokens(estimated_now: int,
+                             last_input_tokens: int | None,
+                             estimate_at_request: int | None) -> int:
+    """计算用于压缩判定的有效 token 数。
+
+    - 轮间（estimate_at_request=None）：max(估算, 精确值)。精确值来自上次
+      API 返回的 prompt_tokens，真实但滞后（不含刚生成的输出）；估算实时
+      但对 minified 代码等高密度内容低估 ~20%。取大互补。
+    - 轮内（两个值都传）：精确基线 + 本轮估算增量 = 上次请求的真实体量
+      + 之后新增内容的估算。增量只能用估——新工具结果还没发过请求。
+    """
+    if last_input_tokens and estimate_at_request is not None:
+        growth = max(0, estimated_now - estimate_at_request)
+        return max(estimated_now, last_input_tokens + growth)
+    if last_input_tokens:
+        return max(estimated_now, last_input_tokens)
+    return estimated_now
+
+
 def should_compact(messages: list[dict], model: str | None = None,
                    last_input_tokens: int | None = None) -> bool:
-    """判断是否需要自动压缩对话。阈值按模型 context window 的 COMPACT_TRIGGER_RATIO 计算。"""
+    """判断是否需要自动压缩对话。阈值按模型 context window 的 COMPACT_TRIGGER_RATIO 计算。
+
+    last_input_tokens：最近一次 API 返回的精确 prompt_tokens（cost_tracker），
+    与本地估算取 max——精确值补估算对 minified 代码等高密度内容的低估
+    （实测 glm-5.3-flash 会话估算 669K / 实际 800K，低估 17% 致 80% 不触发）。
+    注意：调用方若在 prune 之后判定（CompactService 的 skip_if_under_threshold
+    路径），不要传精确值——prune 后的 estimate 才是最新信号。
+    """
     # 阈值下限是 MIN_RECENT_TOKENS：避免极小窗口模型（如 gpt-4 8K）算出的阈值太低
     # 导致每轮都触发压缩 → 死循环。
     threshold = max(
         int(get_context_window(model) * COMPACT_TRIGGER_RATIO),
         MIN_RECENT_TOKENS,
     )
-    return estimate_tokens(messages) > threshold
+    effective = effective_context_tokens(
+        estimate_tokens(messages), last_input_tokens, None)
+    return effective > threshold
 
 
 # ---------------------------------------------------------------------------

@@ -705,7 +705,10 @@ def main() -> None:
         # 每轮结束后检查是否需要自动压缩（plan mode 下跳过；熔断后跳过）
         if not plan_manager.is_active and consecutive_compact_failures < MAX_CONSECUTIVE_COMPACT_FAILURES:
             messages = engine.get_messages()
-            if should_compact(messages, model=app_config.model):
+            precise = (cmd_ctx.cost_tracker.last_input_tokens
+                       if cmd_ctx.cost_tracker else None)
+            if should_compact(messages, model=app_config.model,
+                              last_input_tokens=precise):
                 console.print("[dim]Auto-compacting conversation context…[/dim]")
                 # 只捕获 Exception（不含 KeyboardInterrupt/SystemExit）：保留用户 Ctrl+C
                 # 中断 autocompact 的既有逃逸路径，不把"用户取消"误计入熔断失败次数。
