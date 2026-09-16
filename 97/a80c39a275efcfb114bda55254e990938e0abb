@@ -1,0 +1,26 @@
+README.md
+  s_598338503227a9::t_60e38f6c5c28ce 20,23-48,51,73-74
+  s_598338503227a9::t_4841b29ac02483 303
+  s_598338503227a9::t_ce6dd7ef6ccf19 90,104,106-107,109,111-117,147,149-154,159-166
+  s_598338503227a9::t_d02ae10a453f75 75-76
+  s_598338503227a9::t_2693249a31253d 49-50
+  s_598338503227a9::t_2d1d2e38ac4d43 243,246
+  s_598338503227a9::t_cddf3372576a98 88
+  s_598338503227a9::t_fe5085db680412 185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "97a80c39a275efcfb114bda55254e990938e0abb",
+  "prompts": {},
+  "sessions": {
+    "s_598338503227a9": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "4d15799aeccc4c338a0f472496781ec8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
