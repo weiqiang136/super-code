@@ -1,0 +1,533 @@
+tests/test_multimodal.py
+  s_8a118a2b56a7b5::t_e21dce5129737b 289-293,296,303,305-319
+  s_4f9fe51e040e92::t_f2c63085209d25 10
+  s_4f9fe51e040e92::t_8994d57eb70acc 67,70-72,75-76,79,85-87,90-95,322-337
+  s_4f9fe51e040e92::t_06305dd975d4dc 496,498
+  s_4f9fe51e040e92::t_3c524745d95a4f 77-78,80-84
+  s_4f9fe51e040e92::t_923d03c5b2d7ca 1-2,9,11-66,68-69,73-74,88-89,338-350,355-371
+  s_4f9fe51e040e92::t_5ea4151c587942 351
+  s_4f9fe51e040e92::t_1d9d6d1c96b77c 430-434,436-439,443-471,473,475-495,497,499-516
+  s_4f9fe51e040e92::t_e812e1cb2b6d3b 3-4,7
+  s_4f9fe51e040e92::t_3437e281d1ba37 410
+  s_4f9fe51e040e92::t_a9a887c07a14f1 517-536
+  s_6cbb26ff2f3457::t_a7115e59b1e3d8 542-544,547,549,553,555,558-559,561,565-577,579
+  s_4f9fe51e040e92::t_6df68b45f5c4ba 352
+  s_4f9fe51e040e92::t_607ebe0ec831eb 372-409,411-429
+  s_e5cdf58d0cd4c8::t_294b4550eb958a 96-206
+  s_8a118a2b56a7b5::t_009146144ae37b 207-220,222-288,294-295,297-302,304,320-321
+  s_6cbb26ff2f3457::t_ec9fc0dc494e69 539-541,545-546,548,550-552,554,556-557,560,562-564,578
+  s_e5cdf58d0cd4c8::t_df814923f1205e 5-6
+  s_8a118a2b56a7b5::t_057f0d74d5ee8e 221
+  s_4f9fe51e040e92::t_badfac4af313b9 435,440-442
+  s_4f9fe51e040e92::t_057d8881de794e 537-538
+  s_4f9fe51e040e92::t_707573d16a8c90 472,474
+src/features/worker_manager.py
+  s_ace8953b2bf821::t_4fa72a457ad420 109,120-130
+  s_ddc0eee4a8c85a::t_aaa95bc9974ff2 105-108,110-119
+tests/test_config_user_bootstrap.py
+  s_2628560bf0ec50::t_cef7761b14b385 1-55
+src/tui/app.py
+  s_43c97eb1dead6d::t_e07aee0d71830e 152
+  s_db4b2e9c65cf16::t_864d697a52a11c 48
+  s_40393e05255819::t_62ca3e4a6d5d31 376-378
+  s_43c97eb1dead6d::t_60bc3fb2b19a30 462
+  s_b84b0e429b1949::t_3f9d846a7606ac 41
+  s_ddc0eee4a8c85a::t_58c5442f1919cd 536-538,541
+  s_4f9fe51e040e92::t_e06b0c9dd3baf4 659-668
+  s_e303e0630c5354::t_c12b89cc281217 22
+  s_43c97eb1dead6d::t_8802cf0186b6c0 60-65
+  s_db4b2e9c65cf16::t_7ea13ce9528641 641
+  s_43c97eb1dead6d::t_9a82522315208b 166
+  s_61c472b4cf74aa::t_fd9b5874cfbda6 577,579
+  s_40393e05255819::t_9a665ad89beb9f 525-527,535
+  s_40393e05255819::t_9ac0b9a0b7dcf7 27
+  s_b84b0e429b1949::t_5cdb81d6cb0df1 476-481
+  s_b66be5520ba5a8::t_def6eeb75493b3 423-424,426-429
+  s_61c472b4cf74aa::t_db1c658ffa47d1 25
+  s_b84b0e429b1949::t_21b47aae57b82f 119
+  s_43c97eb1dead6d::t_6bab1664286e7d 105-109
+  s_2628560bf0ec50::t_f4fb108f204d31 19
+  s_40393e05255819::t_6c5a047bc1a4da 528
+  s_e303e0630c5354::t_8b240365a08227 115-118,120-137
+  s_b66be5520ba5a8::t_ad1ebed2746159 6
+  s_e303e0630c5354::t_77856f8d5f0902 381-384
+  s_b84b0e429b1949::t_c5376cfd42096c 533
+  s_701828e102bbac::t_fef970cac4a3d8 425
+  s_e303e0630c5354::t_ef54b0f52b074a 635-637,644
+  s_4f9fe51e040e92::t_4dfea01b0446a8 23
+  s_598338503227a9::t_163c5b1a3af981 708-711
+  s_71c5702c389f9f::t_4a9ac1b7b461e0 739-740
+  s_43c97eb1dead6d::t_f37680a3acef98 150
+  s_556bc5192a3d0b::t_dedc422b6328fb 153-157
+  s_43c97eb1dead6d::t_6f8776605d7c02 104,110-111,140-145,148
+  s_ddc0eee4a8c85a::t_3c02c03c1a5a91 539-540
+  s_ace8953b2bf821::t_21b7f42657e920 568-571
+  s_2628560bf0ec50::t_e86e71fa2455ff 243
+  s_e303e0630c5354::t_3792972ba5d67c 385
+tests/test_stale_reclaim.py
+  s_d6279012512a6a::t_97a751c0055680 1-259
+tests/test_find_relevant_memories.py
+  s_e70efb4aff92cb::t_281c45ff7c7c97 8-9,29,32-33,41-45,205,216-220,243-244,247,271-280,372-373,380-381,387,401-402,434-486
+test_cost_tracker_integration.py
+  s_701828e102bbac::t_f338476f82c2ad 1-130
+src/core/safe_console.py
+  s_61c472b4cf74aa::t_034e1abe656338 1-33
+AGENTS.md
+  s_4f9fe51e040e92::t_8d9571f1076fdb 7-8,12-13,15-17,19-21,23-25,27-32,35-38,41-44,47-49,52-53,56-57,60-61,64-66,69-70,73-75,79-81,85-86
+src/tui/clipboard_image.py
+  s_4f9fe51e040e92::t_b75afd02e061ad 1-42
+src/tools/ask_user.py
+  s_61c472b4cf74aa::t_8171703604a05b 82-85,88
+src/tools/grep_tool.py
+  s_598338503227a9::t_37b525c87da4b7 275-276,283-285
+  s_598338503227a9::t_a54f165d4d258c 156-157
+  s_598338503227a9::t_8073e60c8663ef 40-70,74-86,101-115,119-122
+  s_598338503227a9::t_3c5446ac8e3b75 123,129-136,140-147
+  s_598338503227a9::t_baf570cc9c0ecd 71-73,87-100,116-118
+  s_598338503227a9::t_b403bec03ca94b 10-17,19-39
+  s_598338503227a9::t_95bcca6176bca8 233,236-244,246-248
+  s_598338503227a9::t_653cbc04bfc3d3 18
+  s_598338503227a9::t_d5a64439aece68 124-128,137-139
+src/tui/query.py
+  s_61c472b4cf74aa::t_d55cd32f61c66f 9,11-12,14
+  s_d6279012512a6a::t_55ffaadfc8be49 53-64
+  s_e798c1c617e031::t_bc15526b4eb124 75
+eval/harbor_agent/supercode_agent.py
+  s_b66be5520ba5a8::t_3ed0b727d3803b 1-135
+src/core/config_template.json
+  s_2628560bf0ec50::t_b6ad9f71783cfa 1-2,47
+  s_0f5e305f428cb7::t_b9a74e70bf8949 3-46
+src/commands/__init__.py
+  s_43c97eb1dead6d::t_d64bdcf86b20c7 479
+  s_71c5702c389f9f::t_d179be9f230074 574
+  s_61c472b4cf74aa::t_788d327edadcc2 518,521
+  s_61c472b4cf74aa::t_121fb275e890c7 721
+  s_598338503227a9::t_35667f9e6692e2 491-498,504-514
+  s_43c97eb1dead6d::t_77ad8821d9c25f 503,515-517,519-520,522
+  s_61c472b4cf74aa::t_36bb430c758f4f 747
+src/core/permissions.py
+  s_61c472b4cf74aa::t_159f4ef036d493 7-8
+  s_61c472b4cf74aa::t_42a0161994c0f6 97-98,100-101
+  s_61c472b4cf74aa::t_aaa8072cb57a97 115,122,132,135,145,149
+src/tools/plan_tools.py
+  s_61c472b4cf74aa::t_56aca30aa3e869 60-61
+src/features/memory.py
+  s_e70efb4aff92cb::t_efcb8907201ba9 371-372
+  s_e70efb4aff92cb::t_ce0fc67fde0648 381
+tests/test_compact_trigger.py
+  s_598338503227a9::t_9033bded48794d 9-17
+  s_598338503227a9::t_8712be59db3ef6 1-8,18-70
+  s_598338503227a9::t_951eec6d960d87 71-106
+.gitignore
+  s_0f5e305f428cb7::t_4bd8bd658f0ffa 10,16-22
+tests/test_grep_truncation.py
+  s_598338503227a9::t_25a181f081a7fb 1-9,11-13,16,19-45
+  s_598338503227a9::t_c77f3c80108649 46-131
+  s_598338503227a9::t_3d462660c6f70e 134-144
+  s_598338503227a9::t_748d059b205313 10,14-15
+  s_598338503227a9::t_f1f09e734e9056 163-171
+  s_598338503227a9::t_7a4e1b366eb6de 17-18
+  s_598338503227a9::t_18d38cf4a02b7a 132-133,145-162,172-216
+src/core/engine.py
+  s_5aaa38ae3a1794::t_2b9489a6515632 248,322
+  s_598338503227a9::t_625d5ac346f15a 76-79
+  s_598338503227a9::t_a844b1f86774fb 306-307,309-312,314,318-320,325,331-332
+  s_598338503227a9::t_dd3eb1fa6cf0f6 357-359
+  s_598338503227a9::t_e1742da9bfe922 404
+  s_a6203bfc0dfe5a::t_0b92e78b6eb52f 601-613,623-624,627
+  s_7fe4bd3ec4778b::t_905731750a166a 111-119
+  s_d6279012512a6a::t_136cb5a5a6ff47 13
+  s_d6279012512a6a::t_b96e7ef2cdd016 339-348,350,354-356,363
+  s_d6279012512a6a::t_015b8f86831442 349,351-353
+  s_5aaa38ae3a1794::t_e77fc3afc640b4 12
+  s_5aaa38ae3a1794::t_b20d72bfc6a53b 323-324,326-330,333
+  s_598338503227a9::t_555994dd2f6352 10-11
+  s_5aaa38ae3a1794::t_97fadf8c8a51a5 247,249-259,261,275,277-280
+  s_43c97eb1dead6d::t_5fd3ca80241d90 267-270
+  s_5aaa38ae3a1794::t_41d6dde7e611b8 298,317,321,334-335
+src/tui/prompt.py
+  s_61c472b4cf74aa::t_87bd51fbc58133 182
+  s_e5cdf58d0cd4c8::t_bf22b6103be585 44-47
+  s_6cbb26ff2f3457::t_4835b9af0fcca3 287,290-298,300,304-316
+  s_ddc0eee4a8c85a::t_41e5fb6cdacaab 749-752
+  s_fe203130cc619b::t_b7bdce8f102bd2 358,361-369
+  s_6cbb26ff2f3457::t_554fa747b2e394 288-289,299,301-303,317-318
+  s_ddc0eee4a8c85a::t_482297ff2bdbe1 339
+  s_6cbb26ff2f3457::t_e9b27b5d767f42 404,406
+  s_40393e05255819::t_cd852b059c2040 613-615,624-628,635
+  s_4f9fe51e040e92::t_344d7b655c2ec4 842,848-849
+  s_7961e55d705f0f::t_dd5b7af8262f75 12
+  s_40393e05255819::t_9bfe07ba123091 612,620-623,630-634,636-637
+  s_4f9fe51e040e92::t_785d394f22dc62 150-155
+  s_ddc0eee4a8c85a::t_643cc2b1b12579 576-577,579-581
+  s_e5cdf58d0cd4c8::t_760432bcaa1245 42,48-51,53-56,88,90-91,96-97,100-102,133
+  s_8a118a2b56a7b5::t_8c7f66147c17dc 120
+  s_fe203130cc619b::t_a4bfd0d5fe57fe 395,433,435-442,455-462,483-489,491-499,503-512,514,518,533-538,544-546
+  s_ddc0eee4a8c85a::t_0075fb2713308e 640-644,648-649,664-693,695,697-704,725,727,729-733,739,742,757,759,761-765
+  s_ddc0eee4a8c85a::t_0ab9c4034cdc73 779-780
+  s_375e61bccc185a::t_55b5a1d345426d 23,25
+  s_61c472b4cf74aa::t_d19cb4c5f586ee 24
+  s_ddc0eee4a8c85a::t_835b3e6bc497a6 854-858,864
+  s_8a118a2b56a7b5::t_65e9db0ddf7571 89,93-94
+  s_4f9fe51e040e92::t_0557bed98f2cb5 159-170,190-212
+  s_fe203130cc619b::t_3c3b1ff1c45780 513,516-517,532,539
+  s_61c472b4cf74aa::t_4f3b754859bcdc 27-29,52,57-58,95,103,529
+  s_8a118a2b56a7b5::t_880345d3f9cf2c 520-528,530-531
+  s_ddc0eee4a8c85a::t_36de548c36dbb8 645
+  s_ddc0eee4a8c85a::t_02476908933473 8
+  s_b84b0e429b1949::t_46d618e764c73c 603
+  s_b84b0e429b1949::t_09be6324162822 605-606
+  s_7961e55d705f0f::t_c7f9dedb86b961 319,321-326
+  s_ace8953b2bf821::t_0136518f86750d 707-711,728
+  s_8a118a2b56a7b5::t_3b2519ceaf2e1c 59-87,92,98-99,104-119,121-132,134-148,156
+  s_7961e55d705f0f::t_2d59a604b03a2e 863
+  s_4f9fe51e040e92::t_0370037e61d1f6 425-432,434,443-451
+  s_6cbb26ff2f3457::t_a1473d473bd156 399-403,405,407-409
+  s_4f9fe51e040e92::t_aaed92296714d6 476-478
+  s_ddc0eee4a8c85a::t_593b74abeea9f6 578
+  s_fe203130cc619b::t_fdd767c41c53fc 43
+  s_7961e55d705f0f::t_44d71202957653 320,327-329
+  s_40393e05255819::t_d36f58020df628 337
+  s_40393e05255819::t_cf3a8c7279a2ac 607-610,616-618,629,638
+  s_ddc0eee4a8c85a::t_1db09b5979e84c 647
+  s_ddc0eee4a8c85a::t_8144eaabf59717 650-663,694,696,705-706,715-720,726,734-738,740,743-745,747-748,758,766
+  s_b84b0e429b1949::t_cb939764b5b16f 338
+  s_375e61bccc185a::t_d9fa7caff4a020 582-583
+  s_ddc0eee4a8c85a::t_8c5b6dd3717607 721-724,741,753-756
+  s_40393e05255819::t_39a088e86e3066 611,619
+  s_ace8953b2bf821::t_b8e0560c25c29c 746,760
+  s_ddc0eee4a8c85a::t_14289518b6172f 781-782
+  s_375e61bccc185a::t_5be9a7f6be74ea 567-571,585
+  s_4f9fe51e040e92::t_f8c7d73ec52e4c 6
+src/tui/rendering.py
+  s_375e61bccc185a::t_61ddf3e0d4de0f 70-71,73-92,94
+pyproject.toml
+  s_2628560bf0ec50::t_4bec7ecefeb018 6
+  s_2628560bf0ec50::t_27699d747ca59d 21-23
+  s_2628560bf0ec50::t_689962220c13c1 3,8-9
+src/core/model_capabilities.py
+  s_4f9fe51e040e92::t_a3e18029fac437 9-45
+tests/test_compact_prune.py
+  s_43c97eb1dead6d::t_4919a49d9db3f9 289-325
+  s_43c97eb1dead6d::t_8fe6889be0c914 237,249-254
+  s_43c97eb1dead6d::t_6633945d905b7e 174-177
+  s_477e7f32d81bb9::t_6e384f258d9bfb 372-402
+  s_43c97eb1dead6d::t_5173a0b02b982d 1-166,216-236,238-248,255-288,326-339
+  s_477e7f32d81bb9::t_00a4bf36e2f143 340-371
+  s_43c97eb1dead6d::t_39aacd89292209 167-173,178-215
+src/features/cost_tracker.py
+  s_71c5702c389f9f::t_b823e82d8f6032 3-6,57,79-84,107,112,123
+  s_40393e05255819::t_c49e13016f3b5f 69-77
+  s_b66be5520ba5a8::t_e6bdf5f22aa175 93-104
+tests/test_selector_client.py
+  s_e303e0630c5354::t_f8abdeaa49fa37 12,24,26,39-54,59-61,68,75-82,87,92-94,102-107,118-120,124
+  s_e303e0630c5354::t_fd49405d28829a 1-11,13-23,25,27-38,55-58,62-67,69-74,83-86,88-91,95-101,108-117,121-123
+src/core/config.py
+  s_e303e0630c5354::t_c639c57b9358ee 56-60
+  s_2628560bf0ec50::t_c1db4757cdb5ad 86-108
+  s_e303e0630c5354::t_05ccec9d24c888 173-179
+src/core/llm.py
+  s_b84b0e429b1949::t_cdd316bc7d9040 175
+  s_40393e05255819::t_22afa822a8ac55 181-190
+  s_477e7f32d81bb9::t_2237898aac6503 171-174,176-177
+  s_b84b0e429b1949::t_b0b78d9c08c30d 144
+  s_b84b0e429b1949::t_6026eb973af08f 204
+  s_477e7f32d81bb9::t_9b9479655ae05d 164
+src/core/session.py
+  s_cfa5ca955b770f::t_06ecd5621f5d96 21-25
+  s_cfa5ca955b770f::t_c0f1576a139cb6 113-115
+src/features/find_relevant_memories.py
+  s_e70efb4aff92cb::t_d4ed42944f3a0c 211-212
+  s_e70efb4aff92cb::t_2bcd2d8601cc11 3-6,12-21,85-86,253
+  s_e70efb4aff92cb::t_1f67636f2ae526 82-84,87-98,229-231,239-241,251-252,275-278,285-288,290,351-353,360-361,370-372,376
+  s_e70efb4aff92cb::t_64e120c9f1492a 30,44,49-51
+src/features/compact.py
+  s_43c97eb1dead6d::t_bceadbe0b383d4 525,530,532,537-539,548-551,575
+  s_d6279012512a6a::t_b025ccabd0e619 596-685
+  s_477e7f32d81bb9::t_5af2c848093e05 814
+  s_43c97eb1dead6d::t_ad36b5d035c3a6 70,73-76
+  s_43c97eb1dead6d::t_d3520d21dde899 756-758,762-765,767-769,771,773
+  s_71c5702c389f9f::t_2c47f40baed1f4 889
+  s_43c97eb1dead6d::t_d3e717fd5fc4e1 705,709-712
+  s_477e7f32d81bb9::t_87935c6a56add6 693
+  s_c48d69769c0b7a::t_2c85515a07b465 284
+  s_40393e05255819::t_f1b64255946650 694,697
+  s_43c97eb1dead6d::t_01e3208419183b 522-524,526-529,531,533-536,540-547,552-574,576-595
+  s_43c97eb1dead6d::t_96165f88cc6d0c 65-69,71-72,77-80,521,713
+  s_43c97eb1dead6d::t_f8b7591a6f4edc 36-41
+  s_4f9fe51e040e92::t_13c095ef604fbe 280-283,285-349,352-356,359-374
+  s_5aaa38ae3a1794::t_cf25d27c64c97f 264-268
+  s_a44a92e7c3895b::t_70905ff0dcb02c 22
+  s_43c97eb1dead6d::t_2032abe6165243 750,755,759,766,770,772,774
+  s_43c97eb1dead6d::t_a5b8f52a312014 801-804,806,825,827-833,835-837,839-846
+  s_40393e05255819::t_25288a48768a19 887-888,890-891,897
+  s_5aaa38ae3a1794::t_41b7e05bf3e8e1 12
+  s_43c97eb1dead6d::t_fc811bc6994148 211-220
+  s_598338503227a9::t_a73f01939833be 394-412,415-422,429-431
+  s_43c97eb1dead6d::t_21a612ce77f72b 751-754,760-761
+  s_598338503227a9::t_8b6847d2d439c6 892-896
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5d28db9305c5f586c15d47930e3cf252765735bb",
+  "prompts": {},
+  "sessions": {
+    "s_0f5e305f428cb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecc4fb47-e4b3-4863-83fe-681b9122753e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_2628560bf0ec50": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0566118028ce4bd884cc715d92afdd06",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_375e61bccc185a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "b4f1abb74e594ae18e7eef53e6173215",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_40393e05255819": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "95fe1c7bcdca4ab59dfd5c557fd86e5b",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_43c97eb1dead6d": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3d6dca8aa6b941c681b47163fb7e7ad6",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_477e7f32d81bb9": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0b7a08e41c704d8881b1fcf1d3034d61",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_556bc5192a3d0b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "d41c75149a4a49549274b681864f08ec",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_598338503227a9": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "4d15799aeccc4c338a0f472496781ec8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_5aaa38ae3a1794": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6bdeac39-e00d-4818-8363-93d3877869a9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_61c472b4cf74aa": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "619297be580d4a409104db2f38984b77",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_6cbb26ff2f3457": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "80f30703c7b949dd89c9396b1be659c8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_701828e102bbac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71917d63-b17a-4c9c-9bb7-a5ad3915df9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_71c5702c389f9f": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "cbab636e71514295924af12fc3e93ea9",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_7961e55d705f0f": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "ad4b05f4d76346989682d6dd629b2fdc",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_7fe4bd3ec4778b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "4cda5331e5284efc9087ef2d30628af4",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_8a118a2b56a7b5": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "1a499d5f96444992bacf217de807e592",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_a44a92e7c3895b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "b5dbbe9f417e4019a167e987a95bac6d",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_a6203bfc0dfe5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51e1336c-51fb-4ae1-b575-e8cc144fea40",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_ace8953b2bf821": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3011142da1b14ebb81b258d2e6b496a9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_b66be5520ba5a8": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "892f633fa20a4dec9d5557e1d460acd8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_b84b0e429b1949": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "7ac512b8b71b4b3fafe080628ba02098",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_c48d69769c0b7a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "baced6d3ba854da2bcc80d61b83423f8",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_cfa5ca955b770f": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "bd92a3e4d0c44052b2323dc56db3eaf2",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_d6279012512a6a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "8e2999dc4251426990645f24d5c4c3b9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_db4b2e9c65cf16": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "2ea8317a280b4073936118d9cc5dcc5d",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_ddc0eee4a8c85a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "19c086bfdc8a4920a6dc7abfdfbe323f",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_e303e0630c5354": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0e21c0d99312427380582685c7b07125",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_e5cdf58d0cd4c8": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "worker-21dbb0e2",
+        "model": "deepseek-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_e70efb4aff92cb": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "f828933d9b79409680f687d2e0aed7a2",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_e798c1c617e031": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "b6ae5f3c768641fba337c5133d41b2ae",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_fe203130cc619b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f77c3b74-1a55-4456-a95a-51af1a61b014",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}
