@@ -17,9 +17,38 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
 - **Plan 模式**：`Shift+Tab` 切换只读规划模式，不执行任何写操作
 - **MCP 工具**：通过 `.mcp.json` 接入 Model Context Protocol 工具服务
 - **会话持久化**：JSONL 格式记录对话历史，支持随时恢复
+- **多模态输入**：支持图片拖拽 / 粘贴，直接在对话中查看和讨论截图
 - **沙箱保护**：`--sandbox` 模式对危险命令进行黑名单过滤
 
-## 安装（Windows）
+## 安装
+
+### 方式一：pip 安装（推荐，支持 Windows / macOS / Linux）
+
+需要 Python ≥ 3.10：
+
+```bash
+pip install super-code-assistant
+```
+
+国内网络建议使用清华镜像：
+
+```bash
+pip install super-code-assistant -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+> 注意：PyPI 包名是 `super-code-assistant`，安装后使用的命令是 `super-code`。
+
+建议安装在独立的虚拟环境中，或使用 [pipx](https://pipx.pypa.io/) 安装，避免污染全局 Python 环境。
+
+验证安装：
+
+```bash
+super-code --version
+```
+
+首次运行 `super-code` 会自动在 `~/.config/super-code/` 下生成配置模板，编辑它填入自己的 `api_key` 即可使用（详见下方「配置」）。
+
+### 方式二：Windows 便携 exe
 
 1. 从 [Releases](https://github.com/weiqiang136/super-code/releases) 下载 `super-code.exe`，放到固定目录，例如：
    ```
@@ -41,7 +70,10 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
 
 ## 配置
 
-在 exe **同级目录**创建 `super-code.json`。
+配置文件按安装方式放置：
+
+- **pip 安装**：首次运行 `super-code` 时会自动在 `~/.config/super-code/super-code.json` 生成配置模板（已存在则绝不覆盖），编辑该文件填入自己的 `api_key` 等即可
+- **便携 exe**：不会自动生成，需在 **exe 同级目录**手动创建 `super-code.json`
 
 配置文件加载优先级（低 → 高）：
 
@@ -53,9 +85,9 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
 
 同名字段后加载者覆盖前者；三者可叠加使用（如全局放 api_key，项目级覆盖 model）。
 
-### 快速super-code.json示例
+### 快速 super-code.json 示例
 
-**DeepSeek：**
+**GLM（智谱）：**
 
 ```json
 {
@@ -69,14 +101,20 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
   "timeout": 900.0,
 
   // 使用的模型名（主要对话模型）
-  "model": "deepseek-v4-pro",
+  "model": "glm-5.3-flash",
 
-  "api_key": "",
+  // 替换为你自己的 API Key
+  "api_key": "sk-你的密钥",
 
-  "base_url": "https://api.deepseek.com",
+  "base_url": "https://open.bigmodel.cn/api/paas/v4",
 
-  // 记忆相关性检索用的轻量模型。节省主要模型 token，仅用于判断哪些记忆与当前问题相关
-  "extract_model": "deepseek-v4-flash",
+  // 记忆相关性检索用的轻量模型，节省主要模型 token。
+  // 简单写法直接传模型名字符串；传 dict 可换服务商 / 控制思考模式，
+  // 省略的字段回退主模型对应配置
+  "extract_model": {
+    "model": "glm-5.3-flash",
+    "extra_body": { "thinking": { "type": "disabled" } }
+  },
 
   // 协调者模式：开启后可派生子 worker 并行工作
   "coordinator": true,
@@ -106,15 +144,26 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
   },
 
   // ========== 模型级微调参数（按模型名子串匹配） ==========
-  // 用于控制各模型的推理/思考行为，匹配到的 extra_body 会注入到 API 请求体
+  // 匹配到的 extra_body 会注入到 API 请求体，可按模型控制推理/思考行为
   "model_profiles": {
+    "glm": {
+      "extra_body": {
+        "reasoning_effort": "high",
+        "thinking": { "type": "enabled" }
+      }
+    },
     "deepseek-v4-pro": {
       "extra_body": {
         // DeepSeek 推理强度设为最大（深度思考模式）
         "reasoning_effort": "max",
-        "thinking": {
-          "type": "enabled"  // 显式开启思维链输出
-        }
+        "thinking": { "type": "enabled" }
+      }
+    },
+    "qwen-max": {
+      "extra_body": {
+        "enable_thinking": true,
+        "thinking_budget": 8192,
+        "reasoning_effort": "high"
       }
     }
   }
@@ -133,7 +182,7 @@ super-code 是一个运行在终端的 AI 编程助手。通过 OpenAI 兼容接
 | `max_tokens` | int | `131072` | 模型单次最大输出 token 数 |
 | `timeout` | float | `300.0` | HTTP 读超时（秒）；GLM / Qwen 等思考模型建议 ≥ 300 |
 | `coordinator` | bool | `false` | 启用协调者模式（等价于 `--coordinator` 参数） |
-| `extract_model` | string | `""` | 记忆相关性筛选用的轻量模型（如 `gpt-4o-mini`）；空字符串沿用主模型 |
+| `extract_model` | string 或 object | `""` | 记忆相关性筛选用的轻量模型；字符串 = 沿用主模型服务商只换模型名，object 形式可换服务商并控制思考模式（见上方示例），字段省略回退主模型配置 |
 | `auto_dream` | bool | `true` | 是否在后台自动整合记忆日志 |
 | `dream_interval_hours` | float | `24.0` | 两次自动整合之间的最小间隔（小时） |
 | `dream_min_sessions` | int | `5` | 触发自动整合所需的最少新会话数 |
@@ -191,10 +240,10 @@ key 为模型名子串（大小写不敏感），最长 key 优先匹配。
 cd /path/to/your/project
 
 # 启动
-super-code.exe
+super-code
 
 # 开启协调者模式（多 agent 并发）
-super-code.exe --coordinator
+super-code --coordinator
 ```
 
 ## 斜杠命令
@@ -251,7 +300,7 @@ description: 做某件事的技能描述
 ## 协调者模式
 
 ```bash
-super-code.exe --coordinator
+super-code --coordinator
 ```
 
 开启后，主 agent 可以创建并调度多个并发 worker agent，适合需要并行处理多个子任务的场景（如同时分析多个文件、并发执行多条搜索）。
