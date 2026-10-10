@@ -1,0 +1,19 @@
+src/core/permissions.py
+  s_ddc6e905ee5280::t_326c34edbc1cf6 107-112,122-154,156-164,168-174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "0e1cd7d9d75d87505c8e39b8bdd029dd59480611",
+  "prompts": {},
+  "sessions": {
+    "s_ddc6e905ee5280": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3591365-b82a-4540-ad85-ad38c31be1de",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

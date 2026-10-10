@@ -1,0 +1,20 @@
+src/commands/__init__.py
+  s_41afbb518eab60::t_030f8f8cf52a30 712-730
+  s_41afbb518eab60::t_2c4bd99cbf8220 776
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c5a556367c35c6a9b37d4756196a4f6a1dae10bd",
+  "prompts": {},
+  "sessions": {
+    "s_41afbb518eab60": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "97fcf81f9e304a0cb1e4f3b5d5749be4",
+        "model": "glm-5.1"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

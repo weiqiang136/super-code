@@ -1,0 +1,23 @@
+src/tui/app.py
+  s_3049693b7ee520::t_7d2e11df3d3069 497-499,502
+tests/test_extract_memories.py
+  s_3049693b7ee520::t_f029b360984f52 196-197,205
+src/features/extract_memories.py
+  s_3049693b7ee520::t_f7f5a1279fdffc 255,261,271,292,310,314,319
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "2b4b60e6a60f9349e8da819746933743425b919a",
+  "prompts": {},
+  "sessions": {
+    "s_3049693b7ee520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e40d2ed0-fe52-49cb-9c97-02d9bde48016",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

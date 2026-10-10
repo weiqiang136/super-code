@@ -1,0 +1,30 @@
+tests/test_llm.py
+  s_80fc8502dd0402::t_c041649a54c336 2-3
+  s_80fc8502dd0402::t_3add7f6f1a1e05 63-108,112-114
+  s_80fc8502dd0402::t_fb27559677f59e 109-111,115-123
+src/core/llm.py
+  s_80fc8502dd0402::t_ca8649b9411da3 294-297
+  s_80fc8502dd0402::t_317e2993c8568e 204-206
+  s_80fc8502dd0402::t_afc6a06f56386c 220,222,230-236
+  s_80fc8502dd0402::t_ff8b756d0c32b8 158
+  s_80fc8502dd0402::t_243e3ffa944e5b 221,223-229
+  s_80fc8502dd0402::t_b2b0473458e1ef 306-309
+  s_80fc8502dd0402::t_8335d337668473 298
+  s_80fc8502dd0402::t_88239705c97825 169-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c0e53ff588bdd6e5cbeee60e26f639fd5fd3378f",
+  "prompts": {},
+  "sessions": {
+    "s_80fc8502dd0402": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "22e56eda0f9f4fdba009d309ea7bcbff",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

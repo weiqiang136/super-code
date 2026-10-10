@@ -1,0 +1,26 @@
+src/core/sandbox.py
+  s_9b42ca76cb0f10::t_0ab00540bf6d09 1-58
+src/tools/bash.py
+  s_9b42ca76cb0f10::t_2484b0becb4f2a 38-42
+src/tui/app.py
+  s_9b42ca76cb0f10::t_27d97b970668b7 170-171
+  s_9b42ca76cb0f10::t_87c8f739330926 226
+  s_9b42ca76cb0f10::t_d4985bb21ad3f3 213-215
+  s_9b42ca76cb0f10::t_f916ea722ad134 242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "96b4800dc18d3619a4cedba8ccd47f97f09af94b",
+  "prompts": {},
+  "sessions": {
+    "s_9b42ca76cb0f10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f839910-3d0f-42da-8eb0-54012239b211",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

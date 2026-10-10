@@ -1,0 +1,31 @@
+src/core/config.py
+  s_ddc6e905ee5280::t_c84b168b3e2bbb 37-39
+  s_ddc6e905ee5280::t_4e638df41af159 95,97-107,115-117
+src/tui/app.py
+  s_ddc6e905ee5280::t_2591a26c14f2d8 272-303
+  s_ddc6e905ee5280::t_c86293c5101b52 80-84
+  s_ddc6e905ee5280::t_25b72a7900ebdb 24-28
+  s_ddc6e905ee5280::t_ea103456d1ff6f 43-44,50-58
+src/commands/__init__.py
+  s_ddc6e905ee5280::t_ebf4fab7dfaad9 280,282,285,298,300-302
+src/core/engine.py
+  s_ddc6e905ee5280::t_1f074c6c0e434b 42-55
+src/features/memory.py
+  s_ddc6e905ee5280::t_f77410f3900aa9 152-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "eb9fac9d02566aaf1d3ae41f2e60f9a04a32749d",
+  "prompts": {},
+  "sessions": {
+    "s_ddc6e905ee5280": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3591365-b82a-4540-ad85-ad38c31be1de",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

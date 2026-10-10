@@ -1,0 +1,28 @@
+src/features/compact.py
+  s_43c97eb1dead6d::t_f8b7591a6f4edc 36-41
+src/tui/app.py
+  s_43c97eb1dead6d::t_60bc3fb2b19a30 372
+  s_43c97eb1dead6d::t_f37680a3acef98 76
+  s_43c97eb1dead6d::t_6f8776605d7c02 58,64-71,74,79-83
+  s_43c97eb1dead6d::t_9a82522315208b 92
+  s_43c97eb1dead6d::t_6bab1664286e7d 59-63
+  s_43c97eb1dead6d::t_318af3fa9dd450 84
+  s_43c97eb1dead6d::t_e07aee0d71830e 78
+  s_43c97eb1dead6d::t_8802cf0186b6c0 49-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "72eea84cc25dedf3cf5b1e8dc3aba492a254ec34",
+  "prompts": {},
+  "sessions": {
+    "s_43c97eb1dead6d": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3d6dca8aa6b941c681b47163fb7e7ad6",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

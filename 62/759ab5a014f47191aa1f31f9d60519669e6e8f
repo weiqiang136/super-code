@@ -1,0 +1,19 @@
+src/core/engine.py
+  s_7fe4bd3ec4778b::t_905731750a166a 106-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "62759ab5a014f47191aa1f31f9d60519669e6e8f",
+  "prompts": {},
+  "sessions": {
+    "s_7fe4bd3ec4778b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "4cda5331e5284efc9087ef2d30628af4",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

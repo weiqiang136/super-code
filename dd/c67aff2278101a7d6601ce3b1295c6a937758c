@@ -1,0 +1,21 @@
+src/tui/app.py
+  s_2628560bf0ec50::t_b8fbfdc2bfed5d 156
+  s_2628560bf0ec50::t_f4fb108f204d31 19
+  s_2628560bf0ec50::t_e86e71fa2455ff 241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ddc67aff2278101a7d6601ce3b1295c6a937758c",
+  "prompts": {},
+  "sessions": {
+    "s_2628560bf0ec50": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0566118028ce4bd884cc715d92afdd06",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

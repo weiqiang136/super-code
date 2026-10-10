@@ -1,0 +1,28 @@
+tests/test_multimodal.py
+  s_4f9fe51e040e92::t_a9a887c07a14f1 289-308
+  s_4f9fe51e040e92::t_f2c63085209d25 8
+  s_4f9fe51e040e92::t_8994d57eb70acc 65,68-70,73-74,77,83-85,88-109
+  s_4f9fe51e040e92::t_3c524745d95a4f 75-76,78-82
+  s_4f9fe51e040e92::t_057d8881de794e 309-310
+  s_4f9fe51e040e92::t_badfac4af313b9 207,212-214
+src/tui/prompt.py
+  s_4f9fe51e040e92::t_f8c7d73ec52e4c 6
+  s_4f9fe51e040e92::t_0370037e61d1f6 270,272-274,277-287
+  s_4f9fe51e040e92::t_785d394f22dc62 40-41,43-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "efcd4ba763555628c8a7eab2c2bba7282f0c50f6",
+  "prompts": {},
+  "sessions": {
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

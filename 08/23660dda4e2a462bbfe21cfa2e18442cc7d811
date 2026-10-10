@@ -1,0 +1,19 @@
+src/core/config.py
+  s_57617f6a35f73e::t_965991b40a83cb 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "0823660dda4e2a462bbfe21cfa2e18442cc7d811",
+  "prompts": {},
+  "sessions": {
+    "s_57617f6a35f73e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "edb13edb-bf0a-44ac-85c2-ea8d4026e1c1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

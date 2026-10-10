@@ -1,0 +1,25 @@
+src/features/memory.py
+  s_d9074406b22943::t_ce8c529b639467 356-363,366-367,385,387-388,393-413,415-443,467-480,482,484
+tests/test_memory_prompt.py
+  s_d9074406b22943::t_ab4283329b9b63 1-70
+src/features/memory_age.py
+  s_d9074406b22943::t_d9dc51a8846c16 1-66
+tests/test_memory_age.py
+  s_d9074406b22943::t_8df56b0336cd41 1-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "76e1694698480513d6133318ef68e7441bbca9ac",
+  "prompts": {},
+  "sessions": {
+    "s_d9074406b22943": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f150b27-a26b-4272-9143-e911c061d3da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

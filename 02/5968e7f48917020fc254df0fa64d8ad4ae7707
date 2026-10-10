@@ -1,0 +1,23 @@
+src/features/memory.py
+  s_d9074406b22943::t_b401f6bcd9e8dd 27-29
+  s_d9074406b22943::t_4f35f196e043c9 7
+  s_d9074406b22943::t_d659161b470701 147-232,234-239,246
+tests/test_memory_truncate.py
+  s_d9074406b22943::t_2e4385d5aa25e4 1-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "025968e7f48917020fc254df0fa64d8ad4ae7707",
+  "prompts": {},
+  "sessions": {
+    "s_d9074406b22943": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f150b27-a26b-4272-9143-e911c061d3da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

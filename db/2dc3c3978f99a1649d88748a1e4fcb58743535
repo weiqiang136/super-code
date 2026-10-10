@@ -1,0 +1,29 @@
+src/features/worker_manager.py
+  s_ddc0eee4a8c85a::t_aaa95bc9974ff2 105-119
+src/tui/prompt.py
+  s_ddc0eee4a8c85a::t_593b74abeea9f6 212
+  s_ddc0eee4a8c85a::t_1db09b5979e84c 279
+  s_ddc0eee4a8c85a::t_0ab9c4034cdc73 408-409,412
+  s_ddc0eee4a8c85a::t_8c5b6dd3717607 350-353,370,382-385
+  s_ddc0eee4a8c85a::t_643cc2b1b12579 210-211,213-215
+  s_ddc0eee4a8c85a::t_0075fb2713308e 272-276,280-281,296-325,327,329-336,354,356-362,368,371,375,386,388-394
+src/tui/app.py
+  s_ddc0eee4a8c85a::t_58c5442f1919cd 439-440,443
+  s_ddc0eee4a8c85a::t_3c02c03c1a5a91 441-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "db2dc3c3978f99a1649d88748a1e4fcb58743535",
+  "prompts": {},
+  "sessions": {
+    "s_ddc0eee4a8c85a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "19c086bfdc8a4920a6dc7abfdfbe323f",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

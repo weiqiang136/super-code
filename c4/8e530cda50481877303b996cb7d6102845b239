@@ -1,0 +1,22 @@
+src/tools/plan_tools.py
+  s_2f77830c38c57a::t_a45853efa4eea7 37-42,50,53-75
+src/features/plan.py
+  s_2f77830c38c57a::t_306ffcc5e1803d 190-215
+  s_2f77830c38c57a::t_109071afb924aa 283-286,288,291-292,294-295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c48e530cda50481877303b996cb7d6102845b239",
+  "prompts": {},
+  "sessions": {
+    "s_2f77830c38c57a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72cce529-e29e-4397-adfb-8de1b01e0fd9",
+        "model": "claude-opus-4.7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

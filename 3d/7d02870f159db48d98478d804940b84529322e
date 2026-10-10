@@ -1,0 +1,25 @@
+src/features/memory_scan.py
+  s_d9074406b22943::t_cf06a8316466c1 1-157
+src/features/memory_types.py
+  s_d9074406b22943::t_af81f1052dcbf8 1-35
+tests/test_memory_types.py
+  s_d9074406b22943::t_e8b2244d64717b 1-28
+tests/test_memory_scan.py
+  s_d9074406b22943::t_511e84a0883bda 1-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3d7d02870f159db48d98478d804940b84529322e",
+  "prompts": {},
+  "sessions": {
+    "s_d9074406b22943": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f150b27-a26b-4272-9143-e911c061d3da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

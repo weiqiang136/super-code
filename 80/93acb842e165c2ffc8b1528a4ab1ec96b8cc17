@@ -1,0 +1,23 @@
+src/tui/prompt.py
+  s_ef290abeefa7a7::t_47331d3ae6093a 319-320
+src/commands/__init__.py
+  s_ef290abeefa7a7::t_9fe8388026d539 108,114
+src/core/session.py
+  s_ef290abeefa7a7::t_565d73132ee546 56-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8093acb842e165c2ffc8b1528a4ab1ec96b8cc17",
+  "prompts": {},
+  "sessions": {
+    "s_ef290abeefa7a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2043772b-6021-4fcb-a8d4-ac6726d6e8f3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+src/tui/app.py
+  s_556bc5192a3d0b::t_dedc422b6328fb 79-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1d87a370f3ddfda77ac3420be1b8b83534300450",
+  "prompts": {},
+  "sessions": {
+    "s_556bc5192a3d0b": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "d41c75149a4a49549274b681864f08ec",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

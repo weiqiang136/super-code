@@ -1,0 +1,30 @@
+src/tui/app.py
+  s_b84b0e429b1949::t_21b47aae57b82f 118
+  s_b84b0e429b1949::t_5cdb81d6cb0df1 468-473
+  s_b84b0e429b1949::t_c5376cfd42096c 525
+  s_b84b0e429b1949::t_3f9d846a7606ac 40
+src/core/llm.py
+  s_b84b0e429b1949::t_6026eb973af08f 204
+  s_b84b0e429b1949::t_b0b78d9c08c30d 144
+  s_b84b0e429b1949::t_cdd316bc7d9040 175
+src/tui/prompt.py
+  s_b84b0e429b1949::t_09be6324162822 516-517
+  s_b84b0e429b1949::t_cb939764b5b16f 250
+  s_b84b0e429b1949::t_46d618e764c73c 514
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "90a44321efcb869c9943287aa37d7089e93bede9",
+  "prompts": {},
+  "sessions": {
+    "s_b84b0e429b1949": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "7ac512b8b71b4b3fafe080628ba02098",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

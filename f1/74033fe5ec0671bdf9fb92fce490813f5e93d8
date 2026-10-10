@@ -1,0 +1,34 @@
+src/features/find_relevant_memories.py
+  s_d9074406b22943::t_fa0f223bb921ce 20,45-69
+  s_d9074406b22943::t_6b78b6fa17d3c5 209,214-221,223-226,228-230,233-236,264-322
+tests/test_find_relevant_memories.py
+  s_d9074406b22943::t_e6a9242ebeee3b 27,31-42
+  s_d9074406b22943::t_3254f91a74e88c 204,227,242,255,269
+  s_d9074406b22943::t_d6fe35f6e17f8b 293-423
+src/tui/app.py
+  s_d9074406b22943::t_20821297b51fe0 421-423,425
+src/commands/__init__.py
+  s_d9074406b22943::t_d5de6fefdfad51 497-510,512,518-619
+  s_d9074406b22943::t_875f19d3c0b48b 662
+src/core/config.py
+  s_d9074406b22943::t_05e3a38a5bd9ad 40-43
+  s_d9074406b22943::t_16a27519658f87 112-115,126
+tests/test_cmd_memory.py
+  s_d9074406b22943::t_29c7613cf5d8d7 1-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f174033fe5ec0671bdf9fb92fce490813f5e93d8",
+  "prompts": {},
+  "sessions": {
+    "s_d9074406b22943": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f150b27-a26b-4272-9143-e911c061d3da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

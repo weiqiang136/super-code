@@ -1,0 +1,21 @@
+tests/test_multimodal.py
+  s_4f9fe51e040e92::t_6df68b45f5c4ba 93
+  s_4f9fe51e040e92::t_923d03c5b2d7ca 1-2,7-92,96-112
+  s_4f9fe51e040e92::t_e812e1cb2b6d3b 3-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0dde387194ac2e21b4ab259042cd73fea5a2d37c",
+  "prompts": {},
+  "sessions": {
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

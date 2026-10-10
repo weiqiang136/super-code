@@ -1,0 +1,26 @@
+src/commands/__init__.py
+  s_dde5723215a551::t_69442c97bd0db7 209,214
+  s_dde5723215a551::t_9078fac13f0718 256-307
+  s_dde5723215a551::t_3fb112d7f3c542 488,496-497
+src/tools/skill.py
+  s_dde5723215a551::t_7869230df8cc63 21
+  s_dde5723215a551::t_4a4ee8e59e2226 105-107
+src/features/skills.py
+  s_dde5723215a551::t_75d41510f05006 160-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "bf0842fd0779f68e60a0825eb2be52d07548ff86",
+  "prompts": {},
+  "sessions": {
+    "s_dde5723215a551": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f42f9cc-dbbc-4f0c-a733-3476ebed8356",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

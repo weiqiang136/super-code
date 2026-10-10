@@ -1,0 +1,27 @@
+src/support/voice.py
+  s_6d8c91b8ff3d20::t_ae7546580c4355 282,288,292-293,299-300,304-306,318-320
+  s_6d8c91b8ff3d20::t_212e16d231ca79 504
+  s_6d8c91b8ff3d20::t_bc84eccbaa15ff 528
+src/tui/app.py
+  s_6d8c91b8ff3d20::t_3c1aef3f1f00ea 208
+src/core/config.py
+  s_6d8c91b8ff3d20::t_a05bc65f1845b4 80
+  s_6d8c91b8ff3d20::t_2b5fc8ff57c778 183
+  s_6d8c91b8ff3d20::t_882b6649761cf0 214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0be6e80b83b42c39dacf240c18bca7db4bf0170b",
+  "prompts": {},
+  "sessions": {
+    "s_6d8c91b8ff3d20": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0d8e4aa163944ce380ccb92ab74de414",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

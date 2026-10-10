@@ -1,0 +1,23 @@
+src/tui/rendering.py
+  s_375e61bccc185a::t_61ddf3e0d4de0f 62,65-72,74
+src/tui/prompt.py
+  s_375e61bccc185a::t_d9fa7caff4a020 208-210
+  s_375e61bccc185a::t_5be9a7f6be74ea 198-202,207,212
+  s_375e61bccc185a::t_55b5a1d345426d 19,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c36f23a83d7ffe3cce15ccee7bd39a5e25290d96",
+  "prompts": {},
+  "sessions": {
+    "s_375e61bccc185a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "b4f1abb74e594ae18e7eef53e6173215",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

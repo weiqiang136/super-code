@@ -1,0 +1,35 @@
+src/core/session.py
+  s_ddc6e905ee5280::t_1492dc38f23e93 3
+  s_ddc6e905ee5280::t_4d6c75c62bf94e 18
+src/features/coordinator.py
+  s_ddc6e905ee5280::t_5d78e404a8a685 7
+src/features/memory.py
+  s_ddc6e905ee5280::t_74dd7859fd8ee0 9
+  s_ddc6e905ee5280::t_9e9966ead0ce8b 134
+src/core/config.py
+  s_ddc6e905ee5280::t_48231bbd820ffc 141-143
+src/tui/app.py
+  s_ddc6e905ee5280::t_c1cc9c8584d2f9 1
+  s_ddc6e905ee5280::t_7fb0aa3f2b80f0 170
+  s_ddc6e905ee5280::t_dd115fb783b22a 37
+src/features/plan.py
+  s_ddc6e905ee5280::t_068d10197bac1e 40
+src/features/skills.py
+  s_ddc6e905ee5280::t_dd124e66ffb2c7 180-181,184,186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "0cd8eb9ecea5c32a241a76826a3d0804b3ba8e55",
+  "prompts": {},
+  "sessions": {
+    "s_ddc6e905ee5280": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3591365-b82a-4540-ad85-ad38c31be1de",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

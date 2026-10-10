@@ -1,0 +1,21 @@
+tests/test_config_user_bootstrap.py
+  s_2628560bf0ec50::t_cef7761b14b385 1-55
+src/core/config.py
+  s_2628560bf0ec50::t_c1db4757cdb5ad 86-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bc28f62772c656edd4d93b7b4297a8344e891f69",
+  "prompts": {},
+  "sessions": {
+    "s_2628560bf0ec50": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0566118028ce4bd884cc715d92afdd06",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

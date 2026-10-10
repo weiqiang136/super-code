@@ -1,0 +1,19 @@
+src/core/engine.py
+  s_a6203bfc0dfe5a::t_0b92e78b6eb52f 526-538,548-549,552
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e7c1aded1fc68173eec1ef439c1c871c39e4fb15",
+  "prompts": {},
+  "sessions": {
+    "s_a6203bfc0dfe5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51e1336c-51fb-4ae1-b575-e8cc144fea40",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

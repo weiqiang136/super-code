@@ -1,0 +1,24 @@
+src/tools/__init__.py
+  s_3c0d604e90e80f::t_49b8be8c7c7d9f 8,18
+src/tools/web_fetch.py
+  s_3c0d604e90e80f::t_610b21e3998549 1-129
+src/tui/app.py
+  s_3c0d604e90e80f::t_1206724bf081ad 34
+  s_3c0d604e90e80f::t_c4a765180be7ab 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "57860b3cacab223be97b2e1c001388d3ff6d6728",
+  "prompts": {},
+  "sessions": {
+    "s_3c0d604e90e80f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8682256-a2c3-44d4-8b99-da7c7f48460f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

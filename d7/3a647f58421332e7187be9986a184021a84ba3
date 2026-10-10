@@ -1,0 +1,41 @@
+src/core/config.py
+  s_7d66948c99c693::t_aa4510e8b6bb1b 155-157,172
+  s_7d66948c99c693::t_42b242c08ce9d0 70-71
+src/core/sandbox/__init__.py
+  s_7d66948c99c693::t_01b119da006f08 1-14
+_test_sandbox.py
+  s_7d66948c99c693::t_6a0d827aabbfb7 1-47
+src/core/sandbox/config.py
+  s_7d66948c99c693::t_ab4967ed0cdb56 1-32
+src/core/permissions.py
+  s_7d66948c99c693::t_758977c0575ed1 27
+  s_7d66948c99c693::t_3f32f635c3a61b 77-82
+src/tui/app.py
+  s_7d66948c99c693::t_77a46b4c75e544 217,219-225
+  s_7d66948c99c693::t_ee64708df92dc0 218,226-228
+src/core/sandbox/blacklist.py
+  s_7d66948c99c693::t_df3394748aba8b 55
+  s_7d66948c99c693::t_40d58008ae2f1b 118,122-129,135-137,145-147
+  s_7d66948c99c693::t_ac3e1925951b41 51-53
+  s_7d66948c99c693::t_eb511cfd63f062 1-44,47-50,54,56-63,65-84,86-101,104-106,109,111-114,117,119-121,130-134,138-144,148-155
+  s_7d66948c99c693::t_b00fbec2436ebf 85
+  s_7d66948c99c693::t_5e20a2e3b0ec31 64
+  s_7d66948c99c693::t_23f033f5d10d62 45-46
+  s_7d66948c99c693::t_56f75d25d0cb09 102-103,107-108,110,115-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d73a647f58421332e7187be9986a184021a84ba3",
+  "prompts": {},
+  "sessions": {
+    "s_7d66948c99c693": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "551dc586858d4a278fb53600527ba874",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

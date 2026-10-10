@@ -1,0 +1,20 @@
+src/mcp/loader.py
+  s_44aeaaf76b792a::t_894f4b19713c9d 20
+  s_44aeaaf76b792a::t_41c603e4dec5d7 42-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7afc6963d8705d53e34874147fba9d5240624438",
+  "prompts": {},
+  "sessions": {
+    "s_44aeaaf76b792a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c061773e-5248-49de-a6b5-e54524638299",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

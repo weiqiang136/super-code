@@ -1,0 +1,35 @@
+eval/harbor_agent/supercode_agent.py
+  s_b66be5520ba5a8::t_3ed0b727d3803b 1-123
+test_cost_tracker_integration.py
+  s_701828e102bbac::t_f338476f82c2ad 1-130
+src/features/cost_tracker.py
+  s_b66be5520ba5a8::t_e6bdf5f22aa175 93-105
+src/tui/app.py
+  s_b66be5520ba5a8::t_ad1ebed2746159 6
+  s_b66be5520ba5a8::t_def6eeb75493b3 423-424,426-429
+  s_701828e102bbac::t_fef970cac4a3d8 425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f6b3fbe0a4d03a686ccda49a7f5a2698e11c16bf",
+  "prompts": {},
+  "sessions": {
+    "s_701828e102bbac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71917d63-b17a-4c9c-9bb7-a5ad3915df9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_b66be5520ba5a8": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "892f633fa20a4dec9d5557e1d460acd8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

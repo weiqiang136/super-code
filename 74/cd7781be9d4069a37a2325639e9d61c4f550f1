@@ -1,0 +1,28 @@
+src/core/permissions.py
+  s_d0107aec59ef72::t_78b13f7b8adcdb 141
+  s_6f43b45867c0c1::t_c31118ad88232a 115-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "74cd7781be9d4069a37a2325639e9d61c4f550f1",
+  "prompts": {},
+  "sessions": {
+    "s_6f43b45867c0c1": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "82581c5b552947ae98ff3d3fc2eb39f1",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    },
+    "s_d0107aec59ef72": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "9a76f34fdb70401aa2853f333409d1cd",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

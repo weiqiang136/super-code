@@ -1,0 +1,77 @@
+pyproject.toml
+  s_0f5e305f428cb7::t_8dd75764718ac5 7
+docs/multimodal-support-plan.md
+  s_4f9fe51e040e92::t_f906b65fd506d7 4-8,11-14,19-38,40-55,57-67,74-80,82,84-89,93-99,102-127,129-134,167-169,173-175,178-183,185-193,197-201,204,206-207
+  s_4f9fe51e040e92::t_ba31f1accd8be8 1-3,10,16-17,56,68-73,90-91,100-101,136-156,160-165,170-171,176,184,194-196,202-203,205
+  s_4f9fe51e040e92::t_0803d1fc3a8197 158-159
+docs/context-backpressure-optimization-plan.md
+  s_d6279012512a6a::t_5ff52acedbb716 1-12,14-41,43-47,49-54,56-89,91-96,98-126
+.supercode-tmp-check.py
+  s_2628560bf0ec50::t_b2c0a0270ba2f1 1-10
+src/super_code_assistant.egg-info/entry_points.txt
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1-2
+src/tui/app.py
+  s_0f5e305f428cb7::t_e477e510473885 156
+src/super_code_assistant.egg-info/SOURCES.txt
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1-90
+src/core/config_template.json
+  s_0f5e305f428cb7::t_c8ec92d340af53 3-46
+src/super_code_assistant.egg-info/dependency_links.txt
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1
+.supercode-pypi-check.py
+  s_2628560bf0ec50::t_4ee4a218861bb7 1-28
+src/super_code_assistant.egg-info/PKG-INFO
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1-45
+src/super_code_assistant.egg-info/requires.txt
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1-4
+docs/stale-tool-result-reclamation.md
+  s_d6279012512a6a::t_58abaa5696a1b4 1-20,22-40,42-71,73-183
+src/super_code_assistant.egg-info/top_level.txt
+  s_0f5e305f428cb7::t_7d16ae6f55207c 1-7
+docs/superpowers/plans/2026-08-24-pypi-release-prep.md
+  s_2628560bf0ec50::t_aa6562b94ac037 390
+  s_2628560bf0ec50::t_948f870483c312 339,343-345
+  s_2628560bf0ec50::t_0e692f87e2a7e6 1-35,62-73,79-89,98-107,112-116,120-122,129-144,156-158,165-167,172-174,181-195,255-262,288-293,300-313,319-321,327-329,335-337,347,354-371,377-381,386-388,391-404
+docs/openclaw-research-report.md
+  s_d6279012512a6a::t_81b262b259f14a 1-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c01818970201f80728be98f374496c803182e0f4",
+  "prompts": {},
+  "sessions": {
+    "s_0f5e305f428cb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecc4fb47-e4b3-4863-83fe-681b9122753e",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_2628560bf0ec50": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0566118028ce4bd884cc715d92afdd06",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_d6279012512a6a": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "8e2999dc4251426990645f24d5c4c3b9",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

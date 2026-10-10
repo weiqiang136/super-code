@@ -1,0 +1,21 @@
+src/tui/prompt.py
+  s_ddc6e905ee5280::t_ee2f1708d44727 119
+  s_ddc6e905ee5280::t_f1eca6cc850b19 107
+  s_ddc6e905ee5280::t_c5de9a0dd8c843 174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "0c8bddfecf04ae1875126b5558c86cb02b2b26e9",
+  "prompts": {},
+  "sessions": {
+    "s_ddc6e905ee5280": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3591365-b82a-4540-ad85-ad38c31be1de",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+src/tui/prompt.py
+  s_fe203130cc619b::t_ab99cf5b4a87bc 439,443,447
+  s_fe203130cc619b::t_a4bfd0d5fe57fe 306,344,346-353,368-375,390-397,415-424,426,431,434,436,438,440-441,449-454,460-462
+  s_fe203130cc619b::t_47472e2533e295 429,435
+  s_fe203130cc619b::t_fdd767c41c53fc 40-41,52-55,59-67
+  s_fe203130cc619b::t_b7bdce8f102bd2 269,273-280
+  s_fe203130cc619b::t_3c3b1ff1c45780 425,428,430,433,437,442,444-445,448,455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "74b970131b0e75fa728be3686d8e4bb856eb9d25",
+  "prompts": {},
+  "sessions": {
+    "s_fe203130cc619b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f77c3b74-1a55-4456-a95a-51af1a61b014",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

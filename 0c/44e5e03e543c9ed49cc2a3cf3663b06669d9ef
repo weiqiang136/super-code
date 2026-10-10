@@ -1,0 +1,24 @@
+src/commands/__init__.py
+  s_598338503227a9::t_35667f9e6692e2 491-498,504-514
+src/features/compact.py
+  s_598338503227a9::t_8b6847d2d439c6 892-896
+tests/test_compact_trigger.py
+  s_598338503227a9::t_9033bded48794d 9-17
+  s_598338503227a9::t_951eec6d960d87 71-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0c44e5e03e543c9ed49cc2a3cf3663b06669d9ef",
+  "prompts": {},
+  "sessions": {
+    "s_598338503227a9": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "4d15799aeccc4c338a0f472496781ec8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

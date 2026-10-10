@@ -1,0 +1,38 @@
+docs/terminal-bench-eval-plan.md
+  s_b66be5520ba5a8::t_5e6551a78a4c74 185
+  s_b66be5520ba5a8::t_35618471b414cf 1-89,120-139,147-184,186-193,212-219,223-233
+  s_b66be5520ba5a8::t_13d85c1810e2e1 220-222,234-239
+  s_b66be5520ba5a8::t_2e4a1069961ab4 91-110,116-118
+eval/harbor_agent/supercode_agent.py
+  s_b66be5520ba5a8::t_25a16de879dee6 65,71,76
+  s_b66be5520ba5a8::t_92d55ac615403f 63,72-74
+  s_b66be5520ba5a8::t_2887f054af1fa4 57-59,64,66-70
+.gitignore
+  s_b66be5520ba5a8::t_a8f95d66925921 23-25
+docs/cost_tracker_verification_report.md
+  s_701828e102bbac::t_27d10dfa752cd8 1-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c5312e9ff591d3e17604323df38826cc179e1cf4",
+  "prompts": {},
+  "sessions": {
+    "s_701828e102bbac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71917d63-b17a-4c9c-9bb7-a5ad3915df9f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    },
+    "s_b66be5520ba5a8": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "892f633fa20a4dec9d5557e1d460acd8",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

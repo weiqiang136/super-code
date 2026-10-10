@@ -1,0 +1,25 @@
+src/mcp/tool_proxy.py
+  s_3c0d604e90e80f::t_7fba25edc1b82c 1-59
+src/mcp/client.py
+  s_3c0d604e90e80f::t_923034583e4ae3 1-27,30-92,97-107,109-112
+src/tui/app.py
+  s_3c0d604e90e80f::t_6c32ef488cc9da 232,237
+  s_3c0d604e90e80f::t_fc25c330efb69a 34
+  s_3c0d604e90e80f::t_4a6f445ab2da8e 380-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "1c21247fdaa779ce644f6bf69f90f13df81eacf8",
+  "prompts": {},
+  "sessions": {
+    "s_3c0d604e90e80f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8682256-a2c3-44d4-8b99-da7c7f48460f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

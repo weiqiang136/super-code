@@ -1,0 +1,21 @@
+src/tui/query.py
+  s_3c0d604e90e80f::t_8bae4d974a405d 86-87,89
+src/tui/rendering.py
+  s_3c0d604e90e80f::t_25b24f4b3a2e97 85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "a2da8461b7f12299af0dbe590f89d36093808113",
+  "prompts": {},
+  "sessions": {
+    "s_3c0d604e90e80f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8682256-a2c3-44d4-8b99-da7c7f48460f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

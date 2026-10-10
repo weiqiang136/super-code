@@ -1,0 +1,28 @@
+src/tui/prompt.py
+  s_4f9fe51e040e92::t_938a76851571f6 4
+  s_4f9fe51e040e92::t_30bcc10a271e03 231-247,253
+  s_4f9fe51e040e92::t_12c7f8c5e60f5c 26-74
+  s_4f9fe51e040e92::t_0c677c117d1811 167,175-176,179-182,187,189-191
+src/tui/app.py
+  s_4f9fe51e040e92::t_3469d8ad81593d 68-91,95,98
+  s_4f9fe51e040e92::t_313fdbd0d7b331 639-641
+  s_4f9fe51e040e92::t_ef170a9f3f6d12 92-94,96-97
+  s_4f9fe51e040e92::t_37b0ec87e855fa 512-513,519
+  s_4f9fe51e040e92::t_d6323221dce378 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b2b84a4d7284f3b71ac1d8bac8b40ef70d852a2c",
+  "prompts": {},
+  "sessions": {
+    "s_4f9fe51e040e92": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "3c4c87c1e8eb407abf6b5ba1e66ef8e8",
+        "model": "deepseek-v4-flash-vision-exp"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

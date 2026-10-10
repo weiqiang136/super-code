@@ -1,0 +1,38 @@
+src/tui/voice_repl.py
+  s_6d8c91b8ff3d20::t_f5acdb5117c756 312
+  s_6d8c91b8ff3d20::t_71cbc5c566f090 274-280,286-291,293-305,307-310,313-317
+  s_6d8c91b8ff3d20::t_e457abb092e7e6 379-380
+  s_6d8c91b8ff3d20::t_81eae43d803f4b 1-30,37-273,281-285,292,306,311,318-351,355,357,360-378,381-424
+  s_6d8c91b8ff3d20::t_c1ca41579be612 352-354,356,358-359
+  s_6d8c91b8ff3d20::t_7807517a2878b4 31-36
+src/tui/prompt.py
+  s_6d8c91b8ff3d20::t_44157ad55a11cb 223
+  s_6d8c91b8ff3d20::t_2d861425d35106 286-290
+src/tui/app.py
+  s_6d8c91b8ff3d20::t_0a102e642724f9 511-515
+  s_6d8c91b8ff3d20::t_388d9aa701bf2c 157-185
+  s_6d8c91b8ff3d20::t_c56fb608380e73 443-446
+src/support/voice.py
+  s_6d8c91b8ff3d20::t_a81a0e16858f4d 649
+  s_6d8c91b8ff3d20::t_5807c1d41a74fa 653-655,657,665-668
+  s_6d8c91b8ff3d20::t_605cc9d543a7bb 743-751
+  s_6d8c91b8ff3d20::t_97bc93c0949ff4 609,615-618
+  s_6d8c91b8ff3d20::t_b90b28427861d1 600-608,610-614,619-625
+  s_6d8c91b8ff3d20::t_6e29586666241a 256-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f4c691212c7740f814b66e780711f17a60bc4dcc",
+  "prompts": {},
+  "sessions": {
+    "s_6d8c91b8ff3d20": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "0d8e4aa163944ce380ccb92ab74de414",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

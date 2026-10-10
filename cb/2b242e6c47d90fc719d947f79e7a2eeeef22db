@@ -1,0 +1,31 @@
+src/tui/query.py
+  s_db4b2e9c65cf16::t_5bdb1400425095 33,45,62,136
+  s_db4b2e9c65cf16::t_836df3bb8a03ec 81
+  s_db4b2e9c65cf16::t_f474f62fdeb5f4 11-12
+  s_db4b2e9c65cf16::t_50cd93df6180d4 108
+  s_db4b2e9c65cf16::t_df4c8a544e8f6e 133
+  s_db4b2e9c65cf16::t_aeaa735ed318d8 51
+  s_db4b2e9c65cf16::t_770d734eb3ca65 112
+src/tui/rendering.py
+  s_db4b2e9c65cf16::t_a5db8671fa1a07 83,92
+  s_db4b2e9c65cf16::t_4f357bf067e686 14-20
+  s_db4b2e9c65cf16::t_af262959318572 84-87,89-90
+  s_db4b2e9c65cf16::t_8fc4b65b15f868 71,73-77,81,88,91
+  s_db4b2e9c65cf16::t_b2618519df60e2 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cb2b242e6c47d90fc719d947f79e7a2eeeef22db",
+  "prompts": {},
+  "sessions": {
+    "s_db4b2e9c65cf16": {
+      "agent_id": {
+        "tool": "super-code",
+        "id": "2ea8317a280b4073936118d9cc5dcc5d",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "weiqiang136 <swq9392@163.com>"
+    }
+  }
+}

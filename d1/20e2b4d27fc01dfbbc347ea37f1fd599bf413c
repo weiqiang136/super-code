@@ -1,0 +1,21 @@
+src/tui/app.py
+  s_ddc6e905ee5280::t_ec4f11664986c2 44-48,53-54,58-66,68,71,74
+  s_ddc6e905ee5280::t_eb455fa6abfe60 288
+  s_ddc6e905ee5280::t_1d12728183c72c 43,49-52,55-57,67,69-70,72-73,75-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "d120e2b4d27fc01dfbbc347ea37f1fd599bf413c",
+  "prompts": {},
+  "sessions": {
+    "s_ddc6e905ee5280": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3591365-b82a-4540-ad85-ad38c31be1de",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}

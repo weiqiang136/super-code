@@ -1,0 +1,21 @@
+src/tui/query.py
+  s_dde5723215a551::t_ce77629256f926 79-84,86-93
+src/tools/ask_user.py
+  s_dde5723215a551::t_78e4e21e6a9043 63-75,92,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "362b2a21de20488833b46b7dc71612ed03848301",
+  "prompts": {},
+  "sessions": {
+    "s_dde5723215a551": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f42f9cc-dbbc-4f0c-a733-3476ebed8356",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "宋卫强 <weiqiang.song@ly.com>"
+    }
+  }
+}
