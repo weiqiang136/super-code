@@ -155,6 +155,7 @@ class LLMClient:
     def __init__(self, *, provider: str, api_key: Optional[str] = None, base_url: Optional[str] = None,
                  timeout: float = 300.0, model_profiles: Optional[dict] = None):
         self.provider = validate_provider(provider)
+        self._base_url = base_url
         self._model_profiles: dict = model_profiles or {}
         if self.provider == OPENAI:
             self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
@@ -165,7 +166,9 @@ class LLMClient:
         if self.provider == OPENAI:
             params: dict[str, Any] = {
                 "model": model,
-                "messages": _to_openai_messages(system, messages),
+                "messages": _to_openai_messages(
+                    system, messages,
+                    pad_reasoning=_needs_reasoning_padding(self._base_url, model)),
                 "max_tokens": max_tokens,
             }
             # 摘要等场景不需要思考：跳过 model_profiles（extra_body 均为思考控制参数），
@@ -198,7 +201,9 @@ class LLMClient:
                 client=self._client,
                 model=model,
                 max_tokens=max_tokens,
-                messages=_to_openai_messages(system_prompt, messages),
+                messages=_to_openai_messages(
+                    system_prompt, messages,
+                    pad_reasoning=_needs_reasoning_padding(self._base_url, model)),
                 temperature=temperature,
                 tools=tools,
                 extra_body=lookup_extra_body(model, self._model_profiles),
@@ -212,7 +217,23 @@ def _value(obj: Any, key: str, default: Any = None) -> Any:
         return obj.get(key, default)
     return getattr(obj, key, default)
 
-def _to_openai_messages(system: str | None, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _needs_reasoning_padding(base_url: str | None, model: str) -> bool:
+    """是否需要给 assistant 消息补 reasoning_content 空占位（方案 A：仅 DeepSeek）。
+
+    DeepSeek 官方契约（2026-10 文档 + 实测）：携带 tools 的请求，后续所有请求
+    必须完整回传 reasoning_content——即使该轮模型未实际调用工具；历史含
+    tool_calls 的无 tools 请求（compact 摘要路径）同样拦截。缺字段直接 400
+    （"The `reasoning_content` in the thinking mode must be passed back to
+    the API"），实测补空串即可解除。模型自适应思考导致部分响应无
+    reasoning_content，回放时便缺字段。仅对 DeepSeek 生效（base_url 或模型名
+    命中），不影响其它服务商。
+    """
+    if model and model.startswith("deepseek"):
+        return True
+    return bool(base_url and "deepseek" in base_url)
+
+def _to_openai_messages(system: str | None, messages: list[dict[str, Any]],
+                        pad_reasoning: bool = False) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     if system:
         out.append({"role": "system", "content": system})
@@ -270,6 +291,11 @@ def _to_openai_messages(system: str | None, messages: list[dict[str, Any]]) -> l
             # 透传 reasoning_content（DeepSeek 要求下一轮必须带回）
             if message.get("reasoning_content"):
                 assistant_message["reasoning_content"] = message["reasoning_content"]
+            elif pad_reasoning:
+                # DeepSeek 官方契约（2026-10 文档实测）：带 tools 的请求中所有 assistant
+                # 消息都必须带 reasoning_content——含未调用工具的纯文本回复；历史含
+                # tool_calls 的无 tools 请求同样拦截。缺字段一律补空串占位（实测放行）。
+                assistant_message["reasoning_content"] = ""
             out.append(assistant_message)
             continue
 
@@ -277,6 +303,10 @@ def _to_openai_messages(system: str | None, messages: list[dict[str, Any]]) -> l
             "role": role,
             "content": content,
         })
+        # DeepSeek 官方契约：纯字符串 assistant 回复（无 block 结构）同样要带
+        # reasoning_content，缺字段补空串占位
+        if role == "assistant" and pad_reasoning and not message.get("reasoning_content"):
+            out[-1]["reasoning_content"] = ""
 
     return out
 
