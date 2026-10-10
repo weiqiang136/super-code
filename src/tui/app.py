@@ -49,6 +49,25 @@ from tui.rendering import SpinnerManager, SPINNER_MEMORY
 
 console = SafeConsole()
 
+
+def _dump_crash_traceback(kind: str) -> None:
+    """顶层异常完整堆栈落盘到 ~/.config/super-code/logs/crash.log。
+
+    只 console.print(str(e)) 会丢掉 traceback——间歇性/环境层故障（如注入层
+    导致的 C 层 TypeError）没有堆栈就永远无法定位。落盘失败静默忽略，
+    绝不影响主流程。
+    """
+    try:
+        import traceback
+        from datetime import datetime, timezone
+        log_dir = Path.home() / ".config" / "super-code" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with (log_dir / "crash.log").open("a", encoding="utf-8") as fh:
+            fh.write(f"\n===== {datetime.now(timezone.utc).isoformat()} [{kind}] =====\n")
+            traceback.print_exc(file=fh)
+    except Exception:
+        pass
+
 _DOUBLE_PRESS_TIMEOUT = 0.8
 
 # ===== 多模态图片组装（P0）=====
@@ -155,7 +174,7 @@ def _print_banner(app_config, cwd: str, session_id: str) -> None:
     info.append("Max Output  : ", style="cyan"); info.append(f"{_fmt_tokens(app_config.max_tokens)}\n", style="bright_yellow")
     info.append("Session     : ", style="cyan"); info.append(f"{session_id[:8]}\n", style="bright_blue")
     info.append("CWD         : ", style="cyan"); info.append(f"{cwd}\n", style="bright_white")
-    info.append("Version     : ", style="cyan"); info.append("v3.3.16", style="bold bright_magenta")
+    info.append("Version     : ", style="cyan"); info.append("v3.3.17", style="bold bright_magenta")
 
     table = Table.grid(padding=(0, 3))
     table.add_column(no_wrap=True)
@@ -517,6 +536,7 @@ def main() -> None:
             console.print("\n[dim yellow]⏹ Turn cancelled[/dim yellow]")
         except Exception as e:
             engine.cancel_turn()
+            _dump_crash_traceback("worker_notifications")
             console.print(f"\n[red]Failed to process worker notifications:[/red] {_escape(str(e))}")
         return True
 
@@ -621,6 +641,7 @@ def main() -> None:
                 # 不调用 engine.cancel_turn()：内置命令均不通过 engine.submit() 推进
                 # 对话轮次，cancel_turn 会按上一轮成功 turn 的 checkpoint 误删有效历史。
                 cmd_ctx.pending_query = None
+                _dump_crash_traceback("command")
                 console.print(f"\n[red]Command failed:[/red] {_escape(str(e))}")
             continue
 
@@ -672,6 +693,7 @@ def main() -> None:
             console.print("\n[dim yellow]⏹ Turn cancelled[/dim yellow]")
         except Exception as e:
             engine.cancel_turn()
+            _dump_crash_traceback("query")
             console.print(f"\n[red]Query failed:[/red] {_escape(str(e))}")
 
         # 用户 query 完成后，自动处理在此期间完成的 worker 通知。
